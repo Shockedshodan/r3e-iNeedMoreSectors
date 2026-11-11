@@ -25,6 +25,8 @@ export interface CaptureHeader {
   limits: CaptureLimits;
 }
 export interface CaptureAnnotation {
+  /** Omitted for legacy independent annotations. */
+  source?: 'independent' | 'telemetry';
   completedLap: number;
   outcome: 'valid' | 'invalid' | 'incomplete' | 'unknown';
   totalUs?: number;
@@ -119,7 +121,8 @@ export function parseCaptureRow(value: unknown): CaptureRow {
     if (value.byteLength !== undefined && !integer(value.byteLength, 0)) throw new RangeError('Invalid message length');
     if (value.type === 'annotation') {
       if (!object(value.annotation)) throw new TypeError('Missing independent annotation');
-      keys(value.annotation, ['completedLap', 'outcome', 'totalUs', 'totalToleranceUs', 'layoutId', 'modelId', 'notes']);
+      keys(value.annotation, ['source', 'completedLap', 'outcome', 'totalUs', 'totalToleranceUs', 'layoutId', 'modelId', 'notes']);
+      if (value.annotation.source !== undefined && value.annotation.source !== 'independent' && value.annotation.source !== 'telemetry') throw new TypeError('Invalid annotation source');
       if (!integer(value.annotation.completedLap, 0) || !['valid', 'invalid', 'incomplete', 'unknown'].includes(String(value.annotation.outcome))) throw new TypeError('Invalid annotation label');
       for (const key of ['totalUs', 'totalToleranceUs', 'layoutId', 'modelId']) {
         if (value.annotation[key] !== undefined && !integer(value.annotation[key], key === 'totalUs' ? 1 : 0)) throw new TypeError(`Invalid annotation ${key}`);

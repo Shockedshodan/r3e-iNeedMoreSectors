@@ -102,6 +102,7 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
     const sessions = new Set([...authorized, ...accepted, ...crossings].map(result => `${result.connectionId}:${result.sessionId}`));
     const base = { annotation: scopedAnnotation(value), proposalCount: proposals.length,
       authorizedResultCount: authorized.length, acceptedCount: accepted.length, origin };
+    if (value.source === 'telemetry') return { ...base, status: 'unresolved', reason: 'Telemetry-derived evidence is not independent confirmation' };
     if (value.outcome === 'unknown') return { ...base, status: 'unresolved', reason: 'Annotation outcome is unknown' };
     if (sessions.size > 1) return { ...base, status: 'unresolved', reason: 'Annotation matches multiple sessions; add connection/session identity' };
     if (value.outcome === 'invalid') return authorized.length > 0 || accepted.length > 0
@@ -162,6 +163,7 @@ function resultKey(result: Pick<ResultIdentity, 'connectionId' | 'sessionId' | '
 
 function annotationFields(value: CaptureAnnotation): CaptureAnnotation {
   return { completedLap: value.completedLap, outcome: value.outcome,
+    ...(value.source === undefined ? {} : { source: value.source }),
     ...(value.totalUs === undefined ? {} : { totalUs: value.totalUs }),
     ...(value.totalToleranceUs === undefined ? {} : { totalToleranceUs: value.totalToleranceUs }),
     ...(value.layoutId === undefined ? {} : { layoutId: value.layoutId }),
