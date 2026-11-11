@@ -2,14 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTimingEngine } from '../src/timing-engine.ts';
 import type {
-  FinishResult, RecordBook, RecordUpdate, TimingEngine, TimingEngineOptions,
+  FinishResult, LapCandidate, RecordBook, RecordUpdate, TimingEngine, TimingEngineOptions,
   TimingFrame,
 } from '../src/contracts.ts';
 import { book, completeLapFrames, deepFreeze, definition, frame, result } from './helpers.ts';
 
 // These limits and frames are synthetic engine contracts, not measured R3E limits.
 // FinishResult already carries an association proven by a future bridge adapter.
-function setup(initialRecords: RecordBook = book()) {
+function setup(initialRecords: RecordBook = book(), onLapAccepted?: TimingEngineOptions['onLapAccepted']) {
   const improvements: RecordUpdate[] = [];
   const options: TimingEngineOptions = {
     definition,
@@ -18,9 +18,113 @@ function setup(initialRecords: RecordBook = book()) {
     maxDistanceStep: 0.3,
     finishTimeoutMs: 500,
     onImprovement: update => improvements.push(update),
+    onLapAccepted,
   };
   return { engine: createTimingEngine(options), improvements };
 }
+
+for (const [name, seed] of [
+  ['tied lap', book([500_000, 500_000])],
+  ['slower non-record lap', book([400_000, 400_000])],
+] as const) {
+  test(`diagnostics report a complete valid ${name} without an improvement callback`, () => {
+    const accepted: { candidate: LapCandidate; result: FinishResult }[] = [];
+    const { engine, improvements } = setup(seed, (candidate, result) => accepted.push({ candidate, result }));
+    consume(engine, completeLapFrames());
+    assert.equal(accepted.length, 1);
+    assert.equal(accepted[0].candidate.reference.totalUs, 1_000_000);
+    assert.equal(accepted[0].result.completedLap, 1);
+    assert.equal(accepted[0].result.valid, true);
+    assert.equal(improvements.length, 0);
+    assert.deepEqual(engine.records(), seed);
+  });
+}
+
+test('diagnostic acceptance occurs once despite repeated result frames', () => {
+  let accepted = 0;
+  const { engine, improvements } = setup(book(), () => { accepted += 1; });
+  const frames = completeLapFrames();
+  consume(engine, frames);
+  engine.consume(frames.at(-1)!);
+  engine.consume(nextLapFrame(1250, { finishResult: result() }));
+  engine.consume(nextLapFrame(1500, { finishResult: result() }));
+  assert.equal(accepted, 1);
+  assert.equal(improvements.length, 1);
+});
+
+test('invalid, partial or unavailable-validity captures never emit diagnostic acceptance', () => {
+  const cases = [
+    completeLapFrames(result({ valid: false })),
+    completeLapFrames(result({ valid: null })),
+    completeLapFrames().slice(1),
+    completeLapFrames().map((value, index) => index === 2 ? { ...value, currentLapValid: false } : value),
+  ];
+  for (const frames of cases) {
+    let accepted = 0;
+    const { engine, improvements } = setup(book(), () => { accepted += 1; });
+    consume(engine, frames);
+    assert.equal(accepted, 0);
+    assert.equal(improvements.length, 0);
+  }
+});
+
+test('a malformed custom reference is not reported as accepted merely because the official result is valid', () => {
+  let accepted = 0;
+  const { engine, improvements } = setup(book(), () => { accepted += 1; });
+  const frames = completeLapFrames(result({ totalUs: 3, officialSectorDurationsUs: [1, 1, 1] }));
+  frames[1] = { ...frames[1], lapElapsedUs: 0 };
+  frames[2] = { ...frames[2], lapElapsedUs: 0 };
+  frames[3] = { ...frames[3], lapElapsedUs: 1 };
+  consume(engine, frames);
+  assert.equal(accepted, 0, 'the first custom sector has zero duration and fails reference validation');
+  assert.equal(improvements.length, 0);
+});
+
+test('diagnostic results are immutable copies independent of caller-owned official timing', () => {
+  const durations = [300_000, 300_000, 400_000];
+  const supplied = result({ officialSectorDurationsUs: durations });
+  let acceptedResult: FinishResult | undefined;
+  let acceptedCandidate: LapCandidate | undefined;
+  const { engine } = setup(book(), (candidate, official) => {
+    acceptedCandidate = candidate;
+    acceptedResult = official;
+  });
+  consume(engine, completeLapFrames(supplied));
+  assert.ok(acceptedResult);
+  assert.ok(acceptedCandidate);
+  assert.notEqual(acceptedResult, supplied);
+  assert.ok(Object.isFrozen(acceptedResult));
+  assert.ok(Object.isFrozen(acceptedResult.officialSectorDurationsUs));
+  assert.ok(Object.isFrozen(acceptedCandidate));
+  supplied.totalUs = 9;
+  durations[0] = 9;
+  assert.equal(acceptedResult.totalUs, 1_000_000);
+  assert.deepEqual(acceptedResult.officialSectorDurationsUs, [300_000, 300_000, 400_000]);
+  assert.equal(acceptedCandidate.reference.totalUs, 1_000_000);
+});
+
+test('a failing acceptance observer cannot stop record improvement or the next capture', () => {
+  let accepted = 0;
+  const { engine, improvements } = setup(book(), () => {
+    accepted += 1;
+    throw new Error('Diagnostic sink unavailable');
+  });
+  assert.doesNotThrow(() => consume(engine, completeLapFrames()));
+  assert.equal(accepted, 1);
+  assert.equal(improvements.length, 1);
+  assert.equal(engine.records().best?.totalUs, 1_000_000);
+  engine.consume(nextLapFrame(1250));
+  assert.equal(engine.pendingFinishCount(), 0);
+});
+
+test('disposed engines never report delayed diagnostic acceptance', () => {
+  let accepted = 0;
+  const { engine } = setup(book(), () => { accepted += 1; });
+  consume(engine, completeLapFrames(null));
+  engine.dispose();
+  engine.consume(nextLapFrame(1250, { finishResult: result() }));
+  assert.equal(accepted, 0);
+});
 
 function consume(engine: TimingEngine, frames: readonly TimingFrame[]): void {
   for (const item of frames) engine.consume(item);

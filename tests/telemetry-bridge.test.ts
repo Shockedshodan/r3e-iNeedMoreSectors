@@ -4,6 +4,7 @@ import { createRaceRoomBridge } from '../src/telemetry/websocket-bridge.ts';
 import type { RaceRoomSocket } from '../src/telemetry/websocket-bridge.ts';
 import type { AdaptedTelemetry, RaceRoomAdapter } from '../src/telemetry/raceroom-adapter.ts';
 import { frame } from './helpers.ts';
+import type { BridgeIngressEvent } from '../src/telemetry/websocket-bridge.ts';
 
 class Socket implements RaceRoomSocket {
   readyState = 0;
@@ -144,4 +145,108 @@ test('URL and timer configuration reject unsupported protocols and invalid inter
   }
   assert.throws(() => createRaceRoomBridge({ pollMs: 0 }), RangeError);
   assert.throws(() => createRaceRoomBridge({ reconnectMs: Number.NaN }), RangeError);
+});
+
+test('ingress records raw projected values and receive time before rejected adaptation', () => {
+  const socket = new Socket();
+  const ingress: BridgeIngressEvent[] = [];
+  const order: string[] = [];
+  let now = 10;
+  const bridge = createRaceRoomBridge({
+    clock: () => now,
+    socketFactory: () => socket,
+    schedule: () => 1, cancel() {},
+    onIngress(event) { ingress.push(event); order.push(event.type); },
+    adapter: { adapt(value) { order.push('adapt'); now = 999; return null; }, reset() {}, status: () => 'unsupported' },
+  });
+  const disconnect = bridge.connect(() => { throw new Error('Rejected data cannot reach subscribers'); });
+  socket.open();
+  now = 20;
+  socket.message(JSON.stringify({ VersionMajor: 99, CompletedLaps: 0, LapTimePreviousSelf: -1, VehicleInfo: { ModelId: 20, Name: 'private' }, DriverData: ['private'] }));
+  assert.deepEqual(order, ['open', 'message', 'adapt']);
+  assert.equal(ingress[1].atMs, 20);
+  assert.deepEqual(ingress[1].data, { VersionMajor: 99, CompletedLaps: 0, LapTimePreviousSelf: -1, VehicleInfo: { ModelId: 20 } });
+  disconnect();
+});
+
+test('malformed ingress is retained without raw text and reconnect changes connection identity', () => {
+  const sockets: Socket[] = [];
+  const ingress: BridgeIngressEvent[] = [];
+  let task: (() => void) | undefined;
+  const bridge = createRaceRoomBridge({
+    clock: () => 10,
+    socketFactory: () => { const socket = new Socket(); sockets.push(socket); return socket; },
+    schedule(callback) { task = callback; return 1; }, cancel() {},
+    onIngress: event => ingress.push(event),
+    adapter: { adapt: () => null, reset() {}, status: () => 'fixture' },
+  });
+  const disconnect = bridge.connect(() => {});
+  sockets[0].open();
+  sockets[0].message('{private driver name');
+  const malformed = ingress.find(event => event.type === 'malformed')!;
+  assert.ok(malformed);
+  assert.equal(malformed.messageType, 'string');
+  assert.ok(malformed.byteLength! > 0);
+  assert.equal(JSON.stringify(malformed).includes('private driver'), false);
+  sockets[0].message(new Uint8Array([1, 2, 3]));
+  const binary = ingress.find(event => event.type === 'malformed' && event.messageType === 'object');
+  assert.equal(binary?.byteLength, 3);
+  sockets[0].drop();
+  task!();
+  sockets[1].open();
+  const opened = ingress.filter(event => event.type === 'open');
+  assert.equal(opened.length, 2);
+  assert.notEqual(opened[0].connectionId, opened[1].connectionId);
+  assert.ok(ingress.some(event => event.type === 'close'));
+  disconnect();
+});
+
+test('an ingress observer cannot mutate adapter input or disrupt delivery by throwing', () => {
+  const socket = new Socket();
+  let received = 0;
+  let attemptedMutation = 0;
+  const observation: AdaptedTelemetry = { frame: frame(), layoutLengthM: 3000, trackName: '', layoutName: '' };
+  const bridge = createRaceRoomBridge({
+    socketFactory: () => socket, schedule: () => 1, cancel() {},
+    onIngress(event) {
+      if (event.type === 'message') {
+        attemptedMutation += 1;
+        (event.data as { VehicleInfo: { ModelId: number } }).VehicleInfo.ModelId = 999;
+      }
+      throw new Error('Diagnostic sink failure');
+    },
+    adapter: { adapt(value) { assert.equal((value as { VehicleInfo: { ModelId: number } }).VehicleInfo.ModelId, 20); return observation; }, reset() {}, status: () => 'fixture' },
+  });
+  const disconnect = bridge.connect(() => { received += 1; });
+  socket.open();
+  socket.message('{"VehicleInfo":{"ModelId":20}}');
+  assert.equal(received, 1);
+  assert.equal(attemptedMutation, 1);
+  assert.equal(socket.sent.length, 1);
+  disconnect();
+});
+
+test('valid JSON with an unrepresentable numeric field leaves an explicit diagnostic rejection', () => {
+  const socket = new Socket();
+  const captured: BridgeIngressEvent[] = [];
+  let adapterValue: unknown;
+  const bridge = createRaceRoomBridge({
+    socketFactory: () => socket, schedule: () => 1, cancel() {}, clock: () => 123,
+    onIngress: event => captured.push(event),
+    adapter: { adapt(value) { adapterValue = value; return null; }, reset() {}, status: () => 'unavailable timing' },
+  });
+  const disconnect = bridge.connect(() => { throw new Error('Rejected data must not be delivered'); });
+  socket.open();
+  socket.message('{"LapTimeCurrentSelf":1e400,"DriverData":["private"]}');
+  const rejection = captured.find(event => event.type === 'malformed');
+  assert.ok(rejection, 'projection failure must not silently remove a received message');
+  assert.equal(rejection.atMs, 123);
+  assert.equal(rejection.connectionId, captured[0].connectionId);
+  assert.equal(rejection.reason, 'projection-unrepresentable');
+  assert.equal(rejection.messageType, 'string');
+  assert.ok(rejection.byteLength! > 0);
+  assert.equal(rejection.data, undefined);
+  assert.equal(JSON.stringify(rejection).includes('private'), false);
+  assert.equal((adapterValue as { LapTimeCurrentSelf: number }).LapTimeCurrentSelf, Infinity);
+  disconnect();
 });

@@ -14,3 +14,7 @@ and `npm run demo:bridge` for synthetic practice telemetry. Run `npm test`,
 
 Live record saving remains gated until real RaceRoom telemetry semantics and
 embedded-browser behavior are validated; demo data uses isolated storage.
+
+Capture and replay tooling is available with `npm run capture`, `npm run replay`
+and `npm run analyze:capture`. Follow the [Windows live-testing runbook](docs/LIVE_TESTING.md)
+to collect real evidence while keeping live record saving disabled.

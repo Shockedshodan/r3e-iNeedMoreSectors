@@ -45,6 +45,12 @@ The current adapter supports API **3.6**, player-controlled **practice** session
 
 **Live record saving is disabled pending real telemetry validation.** The UI reports this state. Synthetic/browser tests establish implementation behavior, not raw field ordering in the game. Review [TELEMETRY_PROTOCOL.md](TELEMETRY_PROTOCOL.md) before enabling a live-writing path.
 
+## Capture and evaluate real telemetry
+
+After building, run `npm run capture -- --out captures/practice-01 --port 3200` and use its diagnostic HUD page with `capture=1`. This captures the existing socket into a projected JSONL file and checksum manifest without enabling live lap-record writes.
+
+Run `npm run replay -- <capture-directory> --out <new-report-directory>` and `npm run analyze:capture -- <capture-directory> --out <new-analysis-directory>` after stopping the capture. The full [Windows live-testing runbook](LIVE_TESTING.md) covers game setup, independent labels, deliberate invalid/interrupted laps, report interpretation and the evidence required before enabling a supported profile.
+
 ## Add a module
 
 Add `src/modules/<name>/module.ts`, export `createModule(services)` returning a `HudModule`, then rebuild. Webpack recursively discovers descriptors; the host, generic widget renderer and layout settings require no hardcoded entry for the new module. Widget IDs must be unique, and defaults must include finite positions, scale in `0.1..3` and enabled state. Dispose subscriptions and other resources in the module's disposer. See `src/modules/timing/module.ts` and the discovery tests for examples.

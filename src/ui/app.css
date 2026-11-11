@@ -39,4 +39,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .widget-checkbox { display: flex; gap: .55rem; align-items: center; margin: .6rem 0; }
 .reset-layout { width: 100%; }
 .startup-error { padding: 2rem; margin: 2rem; background: #192532; border: 1px solid #c58065; border-radius: 8px; }
+.hud-capture { pointer-events: auto; position: absolute; z-index: 35; top: 9rem; left: 1rem; width: 330px; max-height: calc(100vh - 10rem); overflow: auto; padding: 1rem; border: 1px solid #526477; border-radius: 8px; background: #111d29f7; box-shadow: 0 15px 50px #0005; }
+.hud-capture h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+.hud-capture p { color: #b8c7d3; font-size: .85rem; line-height: 1.5; }
+.hud-capture > label, .hud-capture fieldset > label { display: flex; flex-direction: column; gap: .4rem; margin: .7rem 0; }
+.hud-capture input, .hud-capture select { width: 100%; border: 1px solid #526477; border-radius: 4px; padding: .5rem; background: #0a1420; color: #eaf0f6; }
+.hud-capture button:disabled { cursor: default; opacity: .55; }
+.hud-capture fieldset { margin-top: 1rem; border: 1px solid #405266; border-radius: 4px; padding: .7rem; }
+.capture-buttons, .capture-metrics { display: flex; gap: .5rem; margin: .6rem 0; }
+.capture-metrics { color: #a8d3ed; font-size: .85rem; }
+.hud-capture [data-testid='capture-output'] { display: block; overflow-wrap: anywhere; color: #bdd7c4; font-size: .8rem; }
+.hud-capture [role='alert'], .hud-capture .capture-reason { color: #ffc391; }
 @media (max-width: 800px) { .hud-toolbar { padding: .6rem; } .hud-brand { font-size: .85rem; } .hud-status { top: 9.5rem; } .hud-settings { top: 9.5rem; max-height: calc(100vh - 10.5rem); } }

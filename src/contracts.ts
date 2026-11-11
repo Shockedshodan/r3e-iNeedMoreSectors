@@ -92,6 +92,8 @@ export interface TimingEngineOptions {
   maxDistanceStep: number;
   finishTimeoutMs: number;
   onImprovement(update: RecordUpdate, candidate: LapCandidate): void;
+  /** Diagnostic acceptance of normalized captured laps, independent of records. */
+  onLapAccepted?: (candidate: LapCandidate, result: FinishResult) => void;
 }
 
 export interface TimingEngine {

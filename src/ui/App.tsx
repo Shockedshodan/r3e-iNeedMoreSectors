@@ -4,6 +4,8 @@ import type { KeyBinding, KeyInput } from '../contracts.ts';
 import type { LayoutController, LayoutProfile } from './layout.ts';
 import { WidgetFrame } from './WidgetFrame.tsx';
 import { SectorPanel, DeltaWidget } from './TimingWidgets.tsx';
+import { CaptureControls } from './CaptureControls.tsx';
+import type { CaptureClient } from '../diagnostics/capture-client.ts';
 
 const ApplicationContext = createContext<HudApplication | null>(null);
 const TelemetryActiveContext = createContext(true);
@@ -35,9 +37,10 @@ export interface HudAppProps {
   demo: boolean;
   track?: string;
   activeTelemetry?: boolean;
+  captureClient?: CaptureClient;
 }
 
-export function HudApp({ application, layout, connection, demo, track, activeTelemetry = true }: HudAppProps): React.ReactElement {
+export function HudApp({ application, layout, connection, demo, track, activeTelemetry = true, captureClient }: HudAppProps): React.ReactElement {
   const snapshot = useSyncExternalStore(application.subscribe, application.getSnapshot);
   const placement = useSyncExternalStore(layout.subscribe, layout.getState);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -95,6 +98,7 @@ export function HudApp({ application, layout, connection, demo, track, activeTel
           </WidgetFrame>;
         })}
       </main>
+      {captureClient && <CaptureControls client={captureClient} source={demo ? 'synthetic' : 'live'} />}
       {settingsOpen && <section className="hud-settings" role="dialog" aria-label="HUD settings">
         <div className="settings-heading"><h1>HUD settings</h1><button onClick={() => setSettingsOpen(false)} aria-label="Close settings">×</button></div>
         <p className="settings-intro">Both timing widgets compare against the same saved reference. Recording continues when they are hidden.</p>

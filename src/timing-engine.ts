@@ -149,10 +149,21 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
       complete: true, valid: true, boundaries: [...boundaries],
       reference: { totalUs: result.totalUs, sectors },
     });
+    if (!isValidReference(candidate.reference, sectorCount)) return;
     const update = updateRecords(records, candidate);
-    if (!update.bestChanged && !update.optChanged) return;
-    records = update.records;
-    options.onImprovement(update, candidate);
+    const improved = update.bestChanged || update.optChanged;
+    if (improved) records = update.records;
+    if (options.onLapAccepted) {
+      const official: FinishResult = immutable({
+        sessionId: result.sessionId, layoutId: result.layoutId, modelId: result.modelId,
+        completedLap: result.completedLap, valid: true, totalUs: result.totalUs,
+        officialSectorDurationsUs: [...result.officialSectorDurationsUs],
+      });
+      try { options.onLapAccepted(candidate, official); } catch {
+        // Diagnostics must not change record updates or capture progression.
+      }
+    }
+    if (improved) options.onImprovement(update, candidate);
   }
 
   return {

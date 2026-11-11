@@ -1,6 +1,6 @@
 # RaceRoom bridge adapter and live-writing gate
 
-The implementation sequence for the missing recorder, replay, analysis and live enablement is in [LIVE_VALIDATION_PLAN.md](LIVE_VALIDATION_PLAN.md). Its proposed commands are not implemented yet.
+Capture, replay and analysis are implemented. Use [LIVE_TESTING.md](LIVE_TESTING.md) for exact Windows commands and acceptance scenarios, and [LIVE_VALIDATION_PLAN.md](LIVE_VALIDATION_PLAN.md) for the remaining evidence-driven reconciliation and live enablement work.
 
 The application uses one polling WebSocket connection to the SealHUD-compatible `/r3e` bridge. Its default is `ws://localhost:8070/r3e`; it sends empty strings at a configurable 16 ms polling interval. Connection errors and closes reset the adapter and reconnect. Disposal cancels polling/reconnect timers and closes the socket. No unrelated CrewChief audio, CSS-reload socket, analytics, clipboard telemetry or debug-snapshot storage is started.
 

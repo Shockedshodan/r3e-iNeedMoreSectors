@@ -11,6 +11,8 @@ import { discoverModules } from './discover-modules.ts';
 import { createLayoutDefinitionRegistry } from './layout-definitions.ts';
 import { createRaceRoomAdapter } from './telemetry/raceroom-adapter.ts';
 import { createRaceRoomBridge } from './telemetry/websocket-bridge.ts';
+import { createCaptureClient } from './diagnostics/capture-client.ts';
+import type { CaptureClient } from './diagnostics/capture-client.ts';
 import { createLayoutController } from './ui/layout.ts';
 import { HudApp, SectorPanelWidget, SavedDeltaWidget } from './ui/App.tsx';
 import type { StorageLike } from './contracts.ts';
@@ -37,6 +39,7 @@ let connection = 'Waiting for RaceRoom practice telemetry';
 let activeTelemetry = false;
 let refresh: (() => void) | null = null;
 let disposeApplication: (() => void) | null = null;
+let captureClient: CaptureClient | null = null;
 
 function bridgeUrl(): string {
   const override = parameters.get('ws');
@@ -50,8 +53,12 @@ function bridgeUrl(): string {
 }
 
 try {
+  const captureClock = () => performance.now();
+  if (parameters.get('capture') === '1') captureClient = createCaptureClient({ nowMs: captureClock });
   const bridge = createRaceRoomBridge({
     url: bridgeUrl(), adapter,
+    clock: captureClock,
+    onIngress: captureClient ? event => captureClient?.recordIngress(event) : undefined,
     onObservation(observation) { latest = observation; refresh?.(); },
     onStatus(status) {
       activeTelemetry = status.startsWith('Fixture recording enabled') || status.startsWith('Connected; live record writes disabled');
@@ -72,10 +79,14 @@ try {
   const layout = createLayoutController(storage, application.widgets());
   refresh = () => root.render(<HudApp application={application} layout={layout} demo={demo}
     connection={connection} activeTelemetry={activeTelemetry}
+    captureClient={captureClient ?? undefined}
     track={latest ? [latest.trackName, latest.layoutName].filter(Boolean).join(' · ') : undefined} />);
   refresh();
-  window.addEventListener('pagehide', () => { application.dispose(); disposeApplication = null; root.unmount(); }, { once: true });
+  window.addEventListener('pagehide', () => {
+    captureClient?.dispose(); application.dispose(); disposeApplication = null; root.unmount();
+  }, { once: true });
 } catch (error) {
+  try { captureClient?.dispose(); } catch { /* Diagnostic cleanup must preserve the startup error. */ }
   try { disposeApplication?.(); } catch { /* Cleanup must not conceal the startup error. */ }
   disposeApplication = null;
   refresh = null;

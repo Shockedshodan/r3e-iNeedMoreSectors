@@ -1,6 +1,6 @@
 # Implementation plan: real telemetry capture, replay and live recording
 
-Status: proposed work, following commit `0b5e935`. The recorder, replayer, analyzer and validation-profile tooling described here do not exist yet. This plan does not enable live record saving.
+Status: phases 1–4 are implemented after plan commit `33bf0d5`: bounded capture, the local host/UI, replay and analysis. [LIVE_TESTING.md](LIVE_TESTING.md) is the runnable Windows procedure. Phases 5–8 still require actual game evidence; validation profiles and live enablement are not implemented. This plan does not enable live record saving.
 
 ## Goal and scope
 
@@ -14,10 +14,10 @@ The current 300 ms frame-gap limit, 0.3 distance-step limit and 500 ms finish ti
 
 | Phase | Deliverable | Dependency | Completion evidence |
 | --- | --- | --- | --- |
-| 1 | Versioned capture format and bounded recorder | Existing bridge receive path | RED→GREEN format, ordering, overflow and lifecycle tests |
-| 2 | Local capture host and diagnostic UI | Phase 1 | One real telemetry connection; durable capture and clean shutdown in a browser test |
-| 3 | Deterministic replay and isolated shadow results | Phase 1 | Repeatable output from the same capture, including disconnects and rejected input |
-| 4 | Timeline and measurement reports | Phase 3 | Reports match hand-calculated synthetic fixtures |
+| 1 — implemented | Versioned capture format and bounded recorder | Existing bridge receive path | RED→GREEN format, ordering, overflow and lifecycle tests |
+| 2 — implemented | Local capture host and diagnostic UI | Phase 1 | One real telemetry connection; durable capture and clean shutdown in a browser test |
+| 3 — implemented | Deterministic replay and isolated shadow results | Phase 1 | Repeatable output from the same capture, including disconnects and rejected input |
+| 4 — implemented | Timeline and measurement reports | Phase 3 | Reports match hand-calculated synthetic fixtures |
 | 5 | Windows practice capture campaign | Phases 2–4 | Complete captures plus independent lap-result annotations |
 | 6 | Evidence-driven reconciliation fixes | Phase 5 | Regressions from real traces fail before each fix and pass afterward |
 | 7 | Measured profiles and live acceptance | Phase 6 | Documented thresholds, supported scope and acceptance results |
@@ -62,15 +62,15 @@ Proposed files:
 
 The local host serves the built HUD and accepts capture batches into a selected output directory. This avoids depending on browser downloads or the File System Access API inside RaceRoom. The HUD keeps its existing single connection to the native bridge; diagnostics use batched HTTP to the local host rather than opening a second telemetry poller. Sequence and connection IDs preserve order across batches and retries.
 
-Proposed commands, **to be added during implementation**:
+Implemented commands (build the HUD first with `npm run build`):
 
 ```sh
 npm run capture -- --out captures/practice-01 --port 3200
-npm run replay -- captures/practice-01 --out reports/practice-01
-npm run analyze:capture -- captures/practice-01 --out reports/practice-01
+npm run replay -- captures/practice-01/<capture-id> --out reports/practice-01-replay
+npm run analyze:capture -- captures/practice-01/<capture-id> --out reports/practice-01-analysis
 ```
 
-`capture` starts the local host and prints the diagnostic HUD address and output location. The operator uses that page in RaceRoom's `-webHudUrl` launch option. `capture=1` enables diagnostics only; it must leave live lap-record writes disabled. Demo captures must be explicitly identified and must never qualify a live profile.
+`capture` starts the local host and prints the diagnostic HUD address and output location. Each capture gets its own ID subdirectory; use the directory shown after **Saved** for replay and analysis. The operator uses the diagnostic page in RaceRoom's `-webHudUrl` launch option. `capture=1` enables diagnostics only; it leaves live lap-record writes disabled. Demo captures are explicitly identified and cannot qualify a live profile.
 
 Use bounded server-side streaming and deterministic filenames, handle write errors visibly, and finish/flush cleanly on stop. Add `captures/` and generated reports to `.gitignore`; only selected sanitized fixture excerpts belong in Git. Measure capture overhead and queue high-water marks so instrumentation-induced delays are visible.
 
@@ -179,4 +179,4 @@ Replace the broad live-disabled branch with a narrow, tested supported-profile d
 6. Reconciliation fixes and measured profiles.
 7. In-game acceptance evidence and supported live-writing enablement.
 
-Implement commits 1–4 first. The next required external input is the Windows capture campaign; it should not block building or testing the tooling.
+The software in commits 1–4 is now implemented. The next required external input is the Windows capture campaign. Follow [LIVE_TESTING.md](LIVE_TESTING.md) to collect it and interpret the reports; unresolved evidence must not be promoted to a validated profile.

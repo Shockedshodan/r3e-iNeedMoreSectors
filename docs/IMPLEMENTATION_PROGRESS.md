@@ -1,6 +1,30 @@
 # Implementation progress
 
-## Rendered HUD, controls, discovery and adapter — current milestone
+## Diagnostic capture, replay and analysis — current milestone
+
+Phases 1–4 of [LIVE_VALIDATION_PLAN.md](LIVE_VALIDATION_PLAN.md) are implemented. [LIVE_TESTING.md](LIVE_TESTING.md) contains the Windows procedure, driving scenarios, independent result labels, commands, report interpretation and acceptance criteria.
+
+- **Capture:** versioned timing-only JSONL, monotonic receive timestamps before adaptation, connection epochs, explicit malformed/loss events, bounded queues/batches/session limits and asynchronous writes. Private driver data is excluded.
+- **Local host and controls:** one existing telemetry connection, explicit diagnostic start/stop and annotations, loopback HTTP collection, durable completion manifests with SHA-256, idempotent batch retries and incomplete-capture reporting. Capture data is kept out of localStorage.
+- **Replay:** deterministic adapter/engine execution with a live-disabled control and isolated offline shadow results. Independent labels compare lap identity, validity, total and acceptance count; ties need not improve records. Missing or ambiguous ground truth remains unresolved.
+- **Analysis:** JSON/CSV/HTML timelines around crossings, message versus source-update gaps, duplicate observations, field/validity transitions, quantization, movement, reset and loss diagnostics. Last observed stability is not presented as proof of final validity.
+
+The tools have been exercised together against the standalone synthetic bridge using the production HUD: a complete checksummed capture replayed and produced analysis reports. This demonstrates the tooling, not RaceRoom finish semantics. Reports retain `profileValidated: false` / `liveValidated: false`; ordinary live lap-record saving remains disabled.
+
+Validation on 2026-11-11:
+
+| Check | Result |
+| --- | --- |
+| `npm test` | 336 tests passed; no failed, skipped, cancelled or TODO tests |
+| `npm run test:browser` | 15 Chromium tests passed |
+| `npm run typecheck` | Passed |
+| `npm run build` | Passed; 3 standard Webpack bundle-size/performance warnings |
+| Production HUD → collector → replay/analysis smoke | Complete synthetic capture, checksum verified, reports generated; unlabeled results stayed unresolved |
+| `git diff --check` | Passed |
+
+Review added failing-first regressions for unrepresentable projected values, a manifest-save retry after the data file closes, and ambiguous invalid-lap labels across repeated session lap counts. Generated test captures and reports remain ignored. The remaining development depends on real Windows evidence: reproduce failures as regression fixtures, correct reconciliation, choose measured profiles and pass in-game acceptance before enabling supported live saving.
+
+## Rendered HUD, controls, discovery and adapter — previous milestone
 
 The six implementation items requested after the timing-core commit are now present:
 
