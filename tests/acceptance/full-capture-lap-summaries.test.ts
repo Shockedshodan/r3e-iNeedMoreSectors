@@ -21,6 +21,29 @@ test('full native capture produces six lap summaries without inserted loss reset
   assert.equal(sourceRows.filter(row => row.type === 'loss').length, 0);
   assert.equal(sourceRows.filter(row => row.type === 'annotation').length, 0);
   assert.equal(sourceRows.filter(row => row.kind === 'event').length, 56940);
+  // Audit the existing sanitized windows against their original receipts. The
+  // excerpt deliberately changes only sequence numbers and inserts loss gaps;
+  // it is not a substitute for the full preceding engine state.
+  const fixtureUrl = new URL('../fixtures/lap-count-windows/', import.meta.url);
+  const fixtureBytes = await readFile(new URL('capture.jsonl', fixtureUrl));
+  const provenance = JSON.parse(await readFile(new URL('provenance.json', fixtureUrl), 'utf8'));
+  assert.equal(provenance.sourceSha256, digest);
+  assert.equal(provenance.sourceByteCount, sourceBytes.length);
+  assert.equal(provenance.sourceEventCount, sourceRows.filter(row => row.kind === 'event').length);
+  assert.equal(createHash('sha256').update(fixtureBytes).digest('hex'), provenance.fixtureSha256);
+  const fixtureRows = fixtureBytes.toString('utf8').trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(provenance.independentValidityLabels, []);
+  for (const observation of provenance.observations) {
+    const original = sourceRows[observation.sourceLine - 1];
+    assert.equal(original.seq, observation.sourceSeq);
+    const retained = fixtureRows.find(row => row.kind === 'event' && row.seq === observation.fixtureSeq);
+    assert.ok(retained, 'Every provenance mapping must identify a retained receipt');
+    assert.deepEqual({ ...retained, seq: original.seq }, original);
+  }
+  const originalOpen = sourceRows.find(row => row.kind === 'event' && row.seq === provenance.sourceOpenSeq);
+  const fixtureOpen = fixtureRows.find(row => row.type === 'open');
+  assert.ok(originalOpen && fixtureOpen);
+  assert.deepEqual({ ...fixtureOpen, seq: originalOpen.seq }, originalOpen);
   const directory = await mkdtemp(join(tmpdir(), 'r3e-full-lap-summaries-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const output = join(directory, 'analysis');

@@ -117,6 +117,8 @@ npm run analyze:capture -- captures/practice-01/f489307d-60e5-4188-9e9b-fce95b16
 
 Screen/video annotations are optional independent checks for disputed protocol semantics and final profile acceptance. Automatic telemetry reports are not an independent oracle and do not authorize live writes. Live saving remains disabled pending separate confirmed profile authorization.
 
+The [provided-capture baseline audit](REAL_CAPTURE_BASELINE.md) records verified source/fixture provenance, the six automatic summaries, current replay mismatches and available versus missing campaign coverage.
+
 ## Troubleshoot by connection layer
 
 | Symptom | Check |
