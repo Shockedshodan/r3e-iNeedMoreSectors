@@ -18,7 +18,7 @@ npm run test:browser
 
 `npm start` serves the app on port 3000 with Webpack development reload. `npm run build` generates the standalone `dist/` website. `npm run serve` serves a production build on port 3000 without a development WebSocket client or hot reload. Override the server port with `-- --port 3200` if another project uses 3000. The browser test server uses port 3100.
 
-Browser tests use `/usr/bin/chromium` when available, an executable specified by `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`, or Playwright's installed Chromium. If none is installed, run `npx playwright install chromium` (and `npx playwright install-deps chromium` when the operating system lacks its runtime libraries). CI installs the browser and dependencies explicitly.
+Browser tests use `/usr/bin/chromium` when available, an executable specified by `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`, or Playwright's installed Chromium. If none is installed, run `npx playwright install chromium` (and `npx playwright install-deps chromium` when the operating system lacks its runtime libraries). For Linux browser testing, use Ubuntu 24.04, supported by the locked Playwright 1.56.1. CI pins its test job to `ubuntu-24.04` and requires `npx playwright install --with-deps chromium` before the full browser suite; keep the committed dependency lockfile.
 
 The browser suite includes a smoke check that serves the production `dist/` under `/r3e-iNeedMoreSectors/`, matching the GitHub Pages project path. Run `npm run build` before `npm run test:browser`; to run only this check, use `npx playwright test tests/browser/pages.spec.ts` after building.
 
@@ -77,6 +77,8 @@ Preferences and records use browser localStorage. HTTP versus HTTPS, different h
 ## Publish the normal UI with GitHub Pages
 
 The **Tests and Pages** workflow runs the automated checks on pushes and pull requests. After all checks pass, a push to `main` publishes the tested production `dist/`; Actions → Tests and Pages → Run workflow can also publish when `main` is selected. Pull requests, other branches and manual runs on other refs do not publish. The deployment uses the `github-pages` environment.
+
+[Remote run 43072244561, job 130702903941](https://github.com/Shockedshodan/r3e-iNeedMoreSectors/actions/runs/43072244561/job/130702903941) at revision `9f72a77139eb8981a988d578c8d75f4acb8c9db0` passed dependency installation, typecheck, all 336 unit/component tests and the build, then failed browser installation: `ubuntu-latest` selected Ubuntu 26.04.1, and locked Playwright 1.56.1 reported “Playwright does not support chromium on ubuntu26.04-x64”. The test runner is now pinned to Ubuntu 24.04. Remote verification is still pending: the next authorized run must pass browser installation and the full suite, and verify the published revision. Local validation does not establish remote or deployment success.
 
 For initial activation, a repository administrator must select **Settings → Pages → Build and deployment → Source → GitHub Actions**. After the workflow has been published to the repository, inspect a successful `main` deployment and use its environment URL. The expected address below is **provisional until the first successful deployment**; this guide does not establish that the site is already online:
 
