@@ -15,6 +15,32 @@ function raw(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   };
 }
 
+// Synthetic API-shaped observations; authorization is only for this fixture.
+// A fixed clock keeps the pending finish inside its timeout throughout the test.
+function pendingFixtureFinish() {
+  const adapter = createRaceRoomAdapter({ enableRecordWrites: true, nowMs: () => 100 });
+  const initial = adapter.adapt(raw({ LapDistanceFraction: 0.9, LapTimeCurrentSelf: 9 }));
+  assert.ok(initial);
+  const crossing = adapter.adapt(raw({ CompletedLaps: 1, LapDistanceFraction: 0.01, LapTimeCurrentSelf: 0.1 }));
+  assert.ok(crossing);
+  assert.equal(crossing.frame.sessionId, initial.frame.sessionId);
+  assert.equal(crossing.frame.finishResult, null);
+  const delayed = raw({ CompletedLaps: 1, LapDistanceFraction: 0.02, LapTimeCurrentSelf: 0.2,
+    LapTimePreviousSelf: 10, SectorTimesPreviousSelf: { Sector1: 3, Sector2: 6, Sector3: 10 }, PrevLapValid: 1 });
+  return { adapter, crossing, delayed };
+}
+
+test('pending fixture finish accepts the delayed result without an interruption', () => {
+  const { adapter, crossing, delayed } = pendingFixtureFinish();
+  const resumed = adapter.adapt(delayed);
+  assert.ok(resumed);
+  assert.deepEqual(resumed.frame.finishResult, {
+    sessionId: crossing.frame.sessionId, layoutId: 10, modelId: 20,
+    completedLap: 1, valid: true, totalUs: 10_000_000,
+    officialSectorDurationsUs: [3_000_000, 3_000_000, 4_000_000],
+  });
+});
+
 test('normalizes practice player metadata, distance and seconds without using the game delta', () => {
   const adapter = createRaceRoomAdapter({ nowMs: () => 123 });
   const value = adapter.adapt(raw({ LapTimeCurrentSelf: 1.234567, LapDistanceFraction: 0.125, TimeDeltaBestSelf: -1000 }));
@@ -49,8 +75,9 @@ test('opt-in fixture protocol associates a fresh cumulative official result with
     LapTimePreviousSelf: 10, SectorTimesPreviousSelf: { Sector1: 3, Sector2: 6, Sector3: 10 }, PrevLapValid: 1,
   }));
   assert.ok(value?.frame.finishResult);
+  assert.ok(initial);
   assert.equal(value.frame.finishResult.completedLap, 1);
-  assert.equal(value.frame.finishResult.sessionId, initial!.frame.sessionId);
+  assert.equal(value.frame.finishResult.sessionId, initial.frame.sessionId);
   assert.equal(value.frame.finishResult.totalUs, 10_000_000);
   assert.deepEqual(value.frame.finishResult.officialSectorDurationsUs, [3_000_000, 3_000_000, 4_000_000]);
 });
@@ -146,28 +173,49 @@ test('a new identity, counter rollback or simulation-clock rollback produces a n
     const adapter = createRaceRoomAdapter();
     const first = adapter.adapt(raw({ CompletedLaps: 2 }));
     const second = adapter.adapt(raw({ CompletedLaps: 2, ...change }));
-    assert.notEqual(first?.frame.sessionId, second?.frame.sessionId);
+    assert.ok(first);
+    assert.ok(second);
+    assert.notEqual(first.frame.sessionId, second.frame.sessionId);
   }
 });
 
-test('unsupported sessions, incompatible versions and malformed samples are rejected and interrupt association', () => {
-  for (const change of [{ SessionType: 2 }, { VersionMajor: 2 }, { LayoutLength: 0 }, { VehicleInfo: null },
-    { LapDistanceFraction: Number.NaN }, { LapTimeCurrentSelf: -1 }, { CompletedLaps: -1 }]) {
-    const adapter = createRaceRoomAdapter();
-    assert.equal(adapter.adapt(raw(change)), null);
-  }
-});
+for (const [name, change] of [
+  ['unsupported session', { SessionType: 2 }], ['incompatible version', { VersionMajor: 2 }],
+  ['zero layout length', { LayoutLength: 0 }], ['missing vehicle', { VehicleInfo: null }],
+  ['nonfinite distance', { LapDistanceFraction: Number.NaN }], ['unavailable clock', { LapTimeCurrentSelf: -1 }],
+  ['unavailable lap count', { CompletedLaps: -1 }],
+] as const) {
+  test(`rejected ${name} severs pending finish association`, () => {
+    const { adapter, crossing, delayed } = pendingFixtureFinish();
+    assert.equal(adapter.adapt({ ...delayed, ...change }), null);
+    const resumed = adapter.adapt(delayed);
+    assert.ok(resumed);
+    assert.equal(resumed.frame.finishResult, null, 'delayed result must not resurrect the pending finish');
+    assert.notEqual(resumed.frame.sessionId, crossing.frame.sessionId);
+    const repeated = adapter.adapt({ ...delayed, LapDistanceFraction: 0.03, LapTimeCurrentSelf: 0.3 });
+    assert.ok(repeated);
+    assert.equal(repeated.frame.finishResult, null);
+  });
+}
 
-test('pending result expires and reset severs earlier association', () => {
+test('pending result expires before a delayed result arrives', () => {
   let now = 0;
   const adapter = createRaceRoomAdapter({ enableRecordWrites: true, nowMs: () => now, finishTimeoutMs: 500 });
   adapter.adapt(raw({ LapDistanceFraction: 0.9, LapTimeCurrentSelf: 9 }));
   now = 100;
   adapter.adapt(raw({ CompletedLaps: 1, LapDistanceFraction: 0.01, LapTimeCurrentSelf: 0.1 }));
   now = 601;
-  assert.equal(adapter.adapt(raw({ CompletedLaps: 1, LapDistanceFraction: 0.02, LapTimeCurrentSelf: 0.2,
-    LapTimePreviousSelf: 10, SectorTimesPreviousSelf: { Sector1: 3, Sector2: 6, Sector3: 10 }, PrevLapValid: 1 }))?.frame.finishResult, null);
-  const prior = adapter.adapt(raw())?.frame.sessionId;
+  const expired = adapter.adapt(raw({ CompletedLaps: 1, LapDistanceFraction: 0.02, LapTimeCurrentSelf: 0.2,
+    LapTimePreviousSelf: 10, SectorTimesPreviousSelf: { Sector1: 3, Sector2: 6, Sector3: 10 }, PrevLapValid: 1 }));
+  assert.ok(expired);
+  assert.equal(expired.frame.finishResult, null);
+});
+
+test('explicit reset severs a pending finish before its timeout', () => {
+  const { adapter, crossing, delayed } = pendingFixtureFinish();
   adapter.reset();
-  assert.notEqual(adapter.adapt(raw())?.frame.sessionId, prior);
+  const resumed = adapter.adapt(delayed);
+  assert.ok(resumed);
+  assert.equal(resumed.frame.finishResult, null, 'reset must discard the pending finish');
+  assert.notEqual(resumed.frame.sessionId, crossing.frame.sessionId);
 });

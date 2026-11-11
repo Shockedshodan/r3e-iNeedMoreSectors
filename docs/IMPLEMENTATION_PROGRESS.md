@@ -1,5 +1,25 @@
 # Implementation progress
 
+## Unit/component assertion audit — 2026-11-11
+
+The adapter rejection test previously used a fresh adapter with record writes disabled, so its null result did not establish interruption of an existing finish association. It now establishes a coherent crossing with explicit synthetic-fixture authorization, injects each rejected packet, and verifies that delayed and repeated official results cannot revive the finish. A successful uninterrupted control uses the same fixture and handwritten expected result. The fixed clock keeps the association inside its timeout, excluding expiry as an incidental reason for rejection.
+
+The former combined timeout/reset test reset only after the finish had expired. Separate tests now cover expiry and explicit reset of a still-pending finish. Session-isolation comparisons assert both adapted frames exist before comparing IDs, including recovery after rejection/reset. Rejecting either frame therefore cannot satisfy those assertions.
+
+Temporary production mutations were each observed RED (exit 1), then restored without retaining production changes:
+
+| Mutation | Expected failing assertion |
+| --- | --- |
+| Remove the rejection path's reset | Delayed result must not resurrect the pending finish |
+| Leave the pending finish intact during reset | Reset must discard the pending finish |
+| Return null for the next session's frame | `assert.ok(second)` in the session-isolation test |
+
+Local RED logs are in ignored `.test-results/adapter-audit-*-red.log`. The audit retained the behavioral oracles in `tests/curves.test.ts` (hand-calculated nonlinear interpolation and signed delta), `tests/records.test.ts` (whole-lap Best, independent Opt sectors/curves, ties, immutable references, denied-read recovery and corruption rejection), and `tests/timing-engine.test.ts` (custom sectors independent of native splits, continuity, timeout and acceptance). Component assertions in `tests/ui/timing-widgets.test.tsx` use literal rendered times, signs, missing states and preview labels. Capture format/server/replay/analysis tests retain independent labels, checksum checks, sequence validation and corruption rejection; expected values are not generated from production timing functions.
+
+These are synthetic implementation contracts, including the opt-in adapter fixture, not evidence of RaceRoom field ordering, authoritative final validity or measured live limits. Real-game acceptance and live record saving remain gated by the Windows campaign.
+
+Fresh verification by Alloy on 2026-11-11: `node --version && npm run typecheck && npm test && git diff --check` exited 0 on Node **v24.22.1**. Typecheck passed and all **344 unit/component tests passed**, with 0 failures, cancellations, skips or TODO tests. The subsequent full regression command, `node --version && npm run typecheck && npm test && npm run build && npx playwright install chromium && npm run test:browser && git diff --check && cmp AGENTS.md CLAUDE.md`, also passed, including the production build, Chromium installation and all **16 browser tests**. Patch whitespace and mirrored-instruction checks passed. This audit changes tests and this report only; local synthetic checks do not establish remote CI, deployment or real-game validation.
+
 ## Diagnostic capture, replay and analysis — current milestone
 
 Phases 1–4 of [LIVE_VALIDATION_PLAN.md](LIVE_VALIDATION_PLAN.md) are implemented. [LIVE_TESTING.md](LIVE_TESTING.md) contains the Windows procedure, driving scenarios, independent result labels, commands, report interpretation and acceptance criteria.
