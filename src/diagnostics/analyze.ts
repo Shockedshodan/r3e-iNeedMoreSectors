@@ -1,4 +1,6 @@
 import type { CaptureDocument } from './capture-format.ts';
+import { describeContinuitySettings } from '../telemetry/continuity-settings.ts';
+import type { ContinuitySettings } from '../telemetry/continuity-settings.ts';
 
 export interface GapStatistics {
   count: number;
@@ -89,6 +91,7 @@ export interface CaptureAnalysisReport {
   complete: boolean;
   liveValidated: false;
   recordingEnabled: false;
+  continuitySettings: ContinuitySettings;
   provenance: { startedAt: string; hudVersion: string; gameVersion: string; bridgeVersion: string; browser: string; pollMs: number };
   issues: string[];
   summary: { eventCount: number; messageCount: number; duplicateMessageCount: number; invalidTimingCount: number; malformedCount: number; transportResetEvents: number; observedStateResets: number; annotationCount: number; lossEventCount: number };
@@ -226,6 +229,7 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
   const report: CaptureAnalysisReport = {
     version: 1, captureId: header.captureId, source: header.source, complete: document.complete,
     liveValidated: false, recordingEnabled: false,
+    continuitySettings: describeContinuitySettings(),
     provenance: { startedAt: header.startedAt, hudVersion: header.hudVersion, gameVersion: header.gameVersion,
       bridgeVersion: header.bridgeVersion, browser: header.browser, pollMs: header.pollMs },
     issues: [...document.problems],

@@ -7,6 +7,8 @@ import { createRecordRepository } from '../records.ts';
 import { createLayoutDefinitionRegistry } from '../layout-definitions.ts';
 import { analyzeCapture } from './analyze.ts';
 import type { ReportedLap } from './analyze.ts';
+import { describeContinuitySettings } from '../telemetry/continuity-settings.ts';
+import type { ContinuityLimits, ContinuitySettings } from '../telemetry/continuity-settings.ts';
 
 export interface ReplayProposal {
   seq: number;
@@ -52,6 +54,7 @@ export interface ReplayReport {
   infrastructureEligible: boolean;
   liveWritesEnabled: false;
   profileValidated: false;
+  continuitySettings: ContinuitySettings;
   controlProposals: ReplayProposal[];
   shadowProposals: ReplayProposal[];
   shadowResults: ReplayResult[];
@@ -74,8 +77,9 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
   // Raw count crossings survive unavailable lap clocks; they are diagnostic
   // observations, never authorization to manufacture a normalized timing frame.
   const rawCrossings = new Map(analyzeCapture(validated).reportedLaps.map(lap => [lap.seq, lap]));
-  const shadow = run(validated, true, options, rawCrossings);
-  const control = run(validated, false, options, rawCrossings);
+  const continuitySettings = describeContinuitySettings(options);
+  const shadow = run(validated, true, continuitySettings, rawCrossings);
+  const control = run(validated, false, continuitySettings, rawCrossings);
   issues.push(...shadow.issues);
   const labels: { value: ReplayAnnotation; origin: 'event' | 'sidecar' }[] = [
     ...validated.events.filter(event => event.type === 'annotation' && event.annotation)
@@ -148,7 +152,7 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
   return {
     version: 1, captureId: validated.header.captureId, source: validated.header.source,
     complete, infrastructureEligible: complete && !validated.events.some(event => event.type === 'loss'),
-    liveWritesEnabled: false, profileValidated: false,
+    liveWritesEnabled: false, profileValidated: false, continuitySettings,
     controlProposals: control.proposals, shadowProposals: shadow.proposals,
     shadowResults: shadow.results, acceptedLaps: shadow.accepted, observedCrossings: shadow.crossings,
     comparisons, unresolved, issues: [...new Set(issues)], records: shadow.records,
@@ -187,7 +191,7 @@ function matches(label: ReplayAnnotation, result: ResultIdentity): boolean {
 }
 
 /** Each run owns all its storage and clock state; browser stores are unreachable. */
-function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions, rawCrossings: ReadonlyMap<number, ReportedLap>) {
+function run(document: CaptureDocument, shadow: boolean, options: ContinuityLimits, rawCrossings: ReadonlyMap<number, ReportedLap>) {
   const values = new Map<string, string>();
   const storage: StorageLike = { getItem: key => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); } };
   const definitions = createLayoutDefinitionRegistry(storage);
@@ -209,7 +213,7 @@ function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions,
   let event: CaptureEvent;
   let activeResult: ReplayResult | null = null;
   const adapter = createRaceRoomAdapter({ nowMs: () => now, enableRecordWrites: shadow,
-    finishTimeoutMs: options.finishTimeoutMs ?? 500 });
+    finishTimeoutMs: options.finishTimeoutMs });
 
   function interrupt(): void {
     adapter.reset(); engine?.dispose(); engine = null; identity = null; lastFrame = null;
@@ -265,8 +269,8 @@ function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions,
         const combination = { layoutId: frame.layoutId, modelId: frame.modelId };
         combinations.set(JSON.stringify(combination), { ...combination, definition });
         engine = createTimingEngine({ definition, initialRecords: repository.load(combination, definition),
-          maxFrameGapMs: options.maxFrameGapMs ?? 300, maxDistanceStep: options.maxDistanceStep ?? 0.3,
-          finishTimeoutMs: options.finishTimeoutMs ?? 500,
+          maxFrameGapMs: options.maxFrameGapMs, maxDistanceStep: options.maxDistanceStep,
+          finishTimeoutMs: options.finishTimeoutMs,
           onLapAccepted(_candidate, result) {
             accepted.push(describe(result));
             if (activeResult) activeResult.engineAccepted = true;

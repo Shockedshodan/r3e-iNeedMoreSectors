@@ -1,4 +1,5 @@
 import type { FinishResult, TimingFrame } from '../contracts.ts';
+import { DEFAULT_CONTINUITY_LIMITS } from './continuity-settings.ts';
 
 export interface AdaptedTelemetry {
   frame: TimingFrame;
@@ -88,7 +89,7 @@ interface PendingAssociation {
 
 export function createRaceRoomAdapter(options: RaceRoomAdapterOptions = {}): RaceRoomAdapter {
   const nowMs = options.nowMs ?? (() => Date.now());
-  const timeout = options.finishTimeoutMs ?? 500;
+  const timeout = options.finishTimeoutMs ?? DEFAULT_CONTINUITY_LIMITS.finishTimeoutMs;
   if (!Number.isFinite(timeout) || timeout < 0) throw new RangeError('Finish timeout must be finite and nonnegative');
   let epoch = 0;
   let prior: ObservationState | null = null;

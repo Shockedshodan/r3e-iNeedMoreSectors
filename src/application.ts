@@ -5,6 +5,7 @@ import type {
 import { createHudHost } from './module-host.ts';
 import { createTimingFeature } from './timing-feature.ts';
 import { createRecordRepository } from './records.ts';
+import { DEFAULT_CONTINUITY_LIMITS } from './telemetry/continuity-settings.ts';
 
 export interface ApplicationSnapshot {
   mode: ReferenceMode;
@@ -68,9 +69,9 @@ export function createHudApplication(options: ApplicationOptions): HudApplicatio
     feature = createTimingFeature({
       definition,
       repository,
-      maxFrameGapMs: options.maxFrameGapMs ?? 300,
-      maxDistanceStep: options.maxDistanceStep ?? 0.3,
-      finishTimeoutMs: options.finishTimeoutMs ?? 500,
+      maxFrameGapMs: options.maxFrameGapMs ?? DEFAULT_CONTINUITY_LIMITS.maxFrameGapMs,
+      maxDistanceStep: options.maxDistanceStep ?? DEFAULT_CONTINUITY_LIMITS.maxDistanceStep,
+      finishTimeoutMs: options.finishTimeoutMs ?? DEFAULT_CONTINUITY_LIMITS.finishTimeoutMs,
     });
     instance = feature.create({
       storage: context.storage,
