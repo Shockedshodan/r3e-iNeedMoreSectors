@@ -2,7 +2,7 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readCaptureFile } from './replay-capture.ts';
-import { analyzeCapture, formatAnalysisCsv, formatAnalysisHtml } from '../src/diagnostics/analyze.ts';
+import { analyzeCapture, formatAnalysisCsv, formatAnalysisHtml, formatReportedLapSummary } from '../src/diagnostics/analyze.ts';
 
 export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
   const positional: string[] = [];
@@ -48,6 +48,8 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   await mkdir(directory, { recursive: true });
   for (const file of files) await writeFile(join(directory, file.name), file.content, { flag: 'wx' });
   console.log(`Capture observations saved: ${directory}`);
+  console.log(`${report.reportedLaps.length} telemetry-reported laps (captured API values, not independent validation):`);
+  for (const lap of report.reportedLaps) console.log(formatReportedLapSummary(lap));
   console.log(`${report.summary.messageCount} messages, ${report.boundaryObservations.filter(row => row.countProgression).length} observed count progressions, ${report.finishes.length} timing-qualified finish candidates; final validity remains unestablished and live writes remain disabled.`);
 }
 

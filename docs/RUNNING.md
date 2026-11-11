@@ -109,6 +109,14 @@ Do not add `demo=1` for real data. This local diagnostic page records the existi
 
 Run `npm run replay -- <capture-directory> --out <new-report-directory>` and `npm run analyze:capture -- <capture-directory> --out <new-analysis-directory>` after stopping the capture. The full [Windows live-testing runbook](LIVE_TESTING.md) covers game setup, independent labels, deliberate invalid/interrupted laps, report interpretation and the evidence required before enabling a supported profile.
 
+Analysis automatically extracts ordinary lap times and telemetry-reported validity from captured API values, without manual time entry or annotations. The terminal and JSON/HTML/CSV reports include every observed count crossing, available totals, unavailable totals, ambiguous associations, identity and receipt provenance. For the existing multi-lap recording, run:
+
+```sh
+npm run analyze:capture -- captures/practice-01/f489307d-60e5-4188-9e9b-fce95b169b88 --out reports/practice-01-laps
+```
+
+Screen/video annotations are optional independent checks for disputed protocol semantics and final profile acceptance. Automatic telemetry reports are not an independent oracle and do not authorize live writes. Live saving remains disabled pending separate confirmed profile authorization.
+
 ## Troubleshoot by connection layer
 
 | Symptom | Check |

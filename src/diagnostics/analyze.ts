@@ -468,12 +468,24 @@ function timingStatus(timingAvailable: boolean): string {
   return timingAvailable ? 'Timing-qualified finish candidate; final validity is not established'
     : 'Lap timing unavailable; raw count marker only';
 }
+export function formatReportedLapSummary(lap: ReportedLap): string {
+  let total = 'unavailable';
+  if (lap.totalUs !== null) {
+    const milliseconds = Math.round(lap.totalUs / 1000);
+    total = `${Math.floor(milliseconds / 60_000)}:${String(Math.floor(milliseconds / 1000) % 60).padStart(2, '0')}.${String(milliseconds % 1000).padStart(3, '0')}`;
+  }
+  const crossing = lap.observations.find(observation => observation.seq === lap.seq);
+  const validity = crossing?.fields.PrevLapValid;
+  return `Lap ${lap.completedLap}: ${total}; telemetry-reported validity at crossing (PrevLapValid: ${validity ? display(validity) : 'unavailable'}); coverage ${lap.coverage}; association ${lap.association}; finality ${lap.finality}`;
+}
 export function formatAnalysisCsv(report: CaptureAnalysisReport): string {
   const rows: unknown[][] = [['record', 'connectionId', 'sequence', 'tMs', 'offsetMs', 'field', 'before', 'after', 'detail']];
   for (const connection of report.connections) rows.push(['connection', connection.connectionId, '', '', '', '', '', '', JSON.stringify(connection)]);
   for (const boundary of report.boundaryObservations.filter(row => row.countProgression)) {
+    const lap = report.reportedLaps.find(row => row.connectionId === boundary.connectionId && row.seq === boundary.seq);
+    const detail = lap ? `; ${formatReportedLapSummary(lap)}; capture ${lap.captureId}; session ${lap.sessionId}; ${JSON.stringify(lap)}` : '';
     rows.push([boundary.timingAvailable ? 'finish' : 'count', boundary.connectionId, boundary.seq, boundary.tMs,
-      '', 'CompletedLaps', '', boundary.completedLap, timingStatus(boundary.timingAvailable)]);
+      '', 'CompletedLaps', '', boundary.completedLap, timingStatus(boundary.timingAvailable) + detail]);
   }
   for (const finish of report.finishes) {
     for (const change of finish.timeline) rows.push(['field', finish.connectionId, change.seq, change.tMs, change.offsetMs,
@@ -484,7 +496,14 @@ export function formatAnalysisCsv(report: CaptureAnalysisReport): string {
 }
 export function formatAnalysisHtml(report: CaptureAnalysisReport): string {
   const rows = report.connections.map(connection => `<tr><td>${connection.connectionId}</td><td>${connection.messageCount}</td><td>${connection.duplicateMessageCount}</td><td>${escape(connection.receiveGaps.maxMs)}</td><td>${escape(connection.uniqueSimulationUpdateGaps.maxMs)}</td></tr>`).join('');
-  const progressions = report.boundaryObservations.filter(row => row.countProgression).map(row => `<tr><td>${row.connectionId}</td><td>${row.seq}</td><td>${row.tMs}</td><td>${escape(row.completedLap)}</td><td>${timingStatus(row.timingAvailable)}</td></tr>`).join('');
+  const progressions = report.boundaryObservations.filter(row => row.countProgression).map(boundary => {
+    const lap = report.reportedLaps.find(row => row.connectionId === boundary.connectionId && row.seq === boundary.seq);
+    return `<tr>${[
+      boundary.connectionId, boundary.seq, boundary.tMs, boundary.completedLap, timingStatus(boundary.timingAvailable),
+      lap?.captureId, lap?.sessionId, lap?.layoutId, lap?.modelId,
+      lap ? formatReportedLapSummary(lap) : '', lap ? JSON.stringify(lap) : '',
+    ].map(value => `<td>${escape(value)}</td>`).join('')}</tr>`;
+  }).join('');
   const finishes = report.finishes.map(finish => `<section><h2>Connection ${finish.connectionId}, timing finish window at sequence ${finish.seq}</h2>
     <p>At ${finish.atMs} ms. First changed result: ${escape(finish.firstChangedResultOffsetMs)} ms; last observed result change: ${escape(finish.lastObservedResultChangeOffsetMs)} ms. Finality is not established.${finish.overlappingCrossings ? ' Neighboring finish windows overlap.' : ''}</p>
     <table><thead><tr><th>Sequence</th><th>Offset ms</th><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>${finish.timeline.map(change => `<tr><td>${change.seq}</td><td>${change.offsetMs}</td><td>${escape(change.field)}</td><td>${escape(display(change.before))}</td><td>${escape(display(change.after))}</td></tr>`).join('')}</tbody></table></section>`).join('');
@@ -496,7 +515,8 @@ export function formatAnalysisHtml(report: CaptureAnalysisReport): string {
 <ul>${report.issues.map(issue => `<li>${escape(issue)}</li>`).join('')}</ul><h2>Connection measurements</h2>
 <p>Receive gaps and unique simulation-clock update gaps are separate observations. Polling can repeat one game frame. Percentiles use nearest rank; no threshold is selected automatically.</p>
 <table><thead><tr><th>Connection</th><th>Messages</th><th>Duplicates</th><th>Max receive gap ms</th><th>Max unique-update gap ms</th></tr></thead><tbody>${rows}</tbody></table>
-<h2>Raw count progressions</h2><table><thead><tr><th>Connection</th><th>Sequence</th><th>Time ms</th><th>Completed laps</th><th>Timing status</th></tr></thead><tbody>${progressions}</tbody></table>
+<h2>Telemetry-reported laps and raw count progressions</h2><p>Captured API values are not independent validation. Unavailable totals and ambiguous associations remain unresolved; validity at the crossing does not establish finality. Observation details retain subsequent changes and receipt provenance.</p>
+<table><thead><tr><th>Connection</th><th>Sequence</th><th>Time ms</th><th>Completed laps</th><th>Timing status</th><th>Capture</th><th>Session</th><th>Layout</th><th>Model</th><th>Summary</th><th>Observation details</th></tr></thead><tbody>${progressions}</tbody></table>
 ${finishes}<h2>Diagnostics</h2><p>Queue high-water bytes: ${escape(report.diagnostics.queueHighWaterBytes)}; recorded loss count: ${escape(report.diagnostics.recordedLossCount)}.</p>
 </body></html>\n`;
 }

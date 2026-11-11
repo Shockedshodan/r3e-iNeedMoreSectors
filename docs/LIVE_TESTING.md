@@ -72,9 +72,11 @@ The manifest contains counts, SHA-256, source and complete/incomplete status. Ra
 
 If the HUD exits abruptly, a sink fails, a limit is reached or a capture is interrupted, do not call the resulting file complete. Stop the collector to finalize it as incomplete, restart it and begin a new capture. A page reload resets the browser's capture session; it is not transparent continuation. Keep partial captures for debugging, not qualifying finish evidence.
 
-## 4. Record independent ground truth
+## 4. Optional independent checks
 
-Record the game's official completed-lap time and validity using its result display, preferably with a timestamped screen recording or cropped screenshots. Do not label a lap valid solely because the bridge or replay says so.
+Ordinary analysis automatically extracts lap times and telemetry-reported validity from captured API values, without manual time entry or annotations. Missing independent annotations do not prevent report generation or investigation of the existing capture. Automatic telemetry reports are not an independent oracle and do not authorize live writes; live saving remains disabled pending separate confirmed profile authorization.
+
+Screen/video annotations are optional independent checks for disputed protocol semantics and final profile acceptance. When performing these checks, record the game's official completed-lap time and validity using its result display, preferably with a timestamped screen recording or cropped screenshots. Do not label a lap independently valid solely because the bridge or replay says so. The independent evidence required for final live-profile acceptance below remains separate from ordinary extraction.
 
 Use **Mark lap** in the diagnostic panel when practical, or add an annotation sidecar after reviewing the run. The label uses the native **completed lap count**, not the current lap ordinal: a count of 6 means the car is driving lap 7. The first crossing after starting a mid-lap capture is incomplete coverage even if the game's lap itself was valid.
 
@@ -148,7 +150,7 @@ Existing report files are not overwritten; choose a new report directory for ano
 Outputs:
 
 - `replay.json`: live-disabled control, isolated shadow adapter results, engine acceptances, actual Best/Opt improvements, label comparisons and unresolved cases.
-- `analysis.json`, `analysis.csv`, `analysis.html`: observed gap distributions, duplicate/source updates, raw finish-field timelines, validity transitions, resets, movement and loss diagnostics.
+- `analysis.json`, `analysis.csv`, `analysis.html`: automatic telemetry-reported lap summaries for every raw count crossing, including readable available times, explicitly unavailable totals, observed `PrevLapValid`, ambiguous associations, identity and receipt provenance. These accompany observed gap distributions, duplicate/source updates, raw finish-field timelines, validity transitions, resets, movement and loss diagnostics. The terminal prints the lap count and each lap's time and reported validity; finality remains unestablished.
 
 Replay exit codes are **0** for report generation with no labeled failures, **2** for labeled mismatches (the report is still written), and **1** for input/integrity/I/O errors. Exit 0 with unresolved cases is not a live-validation pass. Reports always leave `profileValidated`/`liveValidated` false and live writing disabled.
 
@@ -183,6 +185,6 @@ Opening the report does not prove native finality: several unchanged samples may
 
 ## 9. Evidence to return for implementation fixes
 
-Provide the capture folder (`capture.jsonl` and `manifest.json`), independent labels, replay/analysis reports, build/version notes and the scenario checklist. Include the matching result-screen evidence where needed. The manifest's local `outputPath` may be redacted without changing the captured file or its checksum.
+Provide the capture folder (`capture.jsonl` and `manifest.json`), replay/analysis reports and build/version notes for ordinary investigation. Add independent labels, matching result-screen evidence and the scenario checklist when checking disputed semantics or seeking final profile acceptance. The manifest's local `outputPath` may be redacted without changing the captured file or its checksum.
 
 The next development work after receiving this evidence is: preserve sanitized failing windows as fixtures, correct reconciliation from those tests, choose measured profile settings, run the in-game acceptance checks, and only then implement supported live-profile enablement. No capture command or report currently removes that gate automatically.
