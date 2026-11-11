@@ -1,0 +1,19 @@
+name: codex-only
+graph: fast-track
+roles:
+  implement:
+    runner: codex
+    model: gpt-6.1-sol
+    timeout_minutes: 25
+  harvest:
+    runner: codex
+    model: gpt-6.1-sol
+verification:
+  max_checks_per_iteration: 5
+  max_total_checks: 15
+  max_command_timeout_minutes: 15
+limits:
+  max_iterations: 4
+  max_consiliums: 0
+  max_wall_time_minutes: 45
+  max_agent_calls: 10
