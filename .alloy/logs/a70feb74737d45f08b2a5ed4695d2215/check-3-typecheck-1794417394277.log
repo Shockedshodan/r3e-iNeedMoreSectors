@@ -1,0 +1,10 @@
+$ npm run typecheck
+purpose=Run the repository's TypeScript quality gate alongside the full suite.
+kind=typecheck
+exit=127
+
+
+> r3e-ineedmoresectors@0.0.0 typecheck
+> tsc --noEmit
+
+sh: 1: tsc: not found
