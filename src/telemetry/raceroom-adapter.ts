@@ -105,7 +105,6 @@ export function createRaceRoomAdapter(options: RaceRoomAdapterOptions = {}): Rac
     adapt(value, source = 'live') {
       if (!object(value)) return reject('Malformed telemetry');
       const data = value;
-      if (data.VersionMajor !== 3 || data.VersionMinor !== 6) return reject('Unsupported shared-memory version; expected 3.6');
       if (data.SessionType !== 0) return reject('Practice sessions are supported first');
       const vehicle = data.VehicleInfo;
       const elapsedUs = secondsUs(data.LapTimeCurrentSelf);

@@ -180,7 +180,7 @@ test('a new identity, counter rollback or simulation-clock rollback produces a n
 });
 
 for (const [name, change] of [
-  ['unsupported session', { SessionType: 2 }], ['incompatible version', { VersionMajor: 2 }],
+  ['unsupported session', { SessionType: 2 }], ['missing layout identity', { LayoutId: undefined }],
   ['zero layout length', { LayoutLength: 0 }], ['missing vehicle', { VehicleInfo: null }],
   ['nonfinite distance', { LapDistanceFraction: Number.NaN }], ['unavailable clock', { LapTimeCurrentSelf: -1 }],
   ['unavailable lap count', { CompletedLaps: -1 }],
