@@ -1,4 +1,4 @@
-/** Proposed implementation boundaries. Units and normalization are in docs/TDD_PLAN.md. */
+/** Timing and module contracts. Units and normalization are in docs/TDD_PLAN.md. */
 export interface Combination {
   layoutId: number;
   modelId: number;
@@ -68,7 +68,7 @@ export interface FinishResult extends Combination {
   officialSectorDurationsUs: readonly number[];
 }
 
-/** Synthetic, normalized player telemetry. Raw bridge adaptation is a later gate. */
+/** Normalized player telemetry from the adapter or synthetic fixtures. Live record writes remain gated. */
 export interface TimingFrame extends Combination {
   sessionId: string;
   observedAtMs: number;

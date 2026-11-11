@@ -8,7 +8,7 @@ import type {
 import { book, completeLapFrames, deepFreeze, definition, frame, result } from './helpers.ts';
 
 // These limits and frames are synthetic engine contracts, not measured R3E limits.
-// FinishResult already carries an association proven by a future bridge adapter.
+// Fixtures supply normalized finish associations; native field ordering still needs live validation.
 function setup(initialRecords: RecordBook = book(), onLapAccepted?: TimingEngineOptions['onLapAccepted']) {
   const improvements: RecordUpdate[] = [];
   const options: TimingEngineOptions = {

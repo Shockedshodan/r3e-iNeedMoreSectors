@@ -23,8 +23,8 @@ The failures are intentional: every behavior reaches a named `Not implemented: â
 | `timing-feature.test.ts` | 6 |
 | **Total** | **123** |
 
-The last full runner output is retained locally at `.test-results/red.log` (ignored by Git). Test logs are not portable evidence of a future run; rerun the commands when implementation starts. The default test command preserves its nonzero exit status. No expected-failure or skip mechanism is used.
+The last full runner output is retained locally at `.test-results/red.log` (ignored by Git). Test logs are not portable evidence of a future run; use [RUNNING.md](RUNNING.md) to verify the current implementation. The default test command preserves its nonzero exit status. No expected-failure or skip mechanism is used.
 
 Review also checked the nonlinear timing arithmetic, the verbatim handoff, and the distinction between synthetic normalized finish associations and unproven native field order. The upstream SealHUD and RaceRoom API checkouts remain unchanged.
 
-See [TDD_PLAN.md](TDD_PLAN.md) for the audit, proposed contracts, implementation order, and deferred browser/live acceptance. At this original checkpoint the whole suite was intentionally RED; that checkpoint has now been superseded by the green implementation report. This historical report does not assert coverage percentages or validated application behavior.
+See [TDD_PLAN.md](TDD_PLAN.md) for the audit, proposed contracts, implementation order, and subsequent browser integration and outstanding live acceptance. At this original checkpoint the whole suite was intentionally RED; that checkpoint has now been superseded by the green implementation report. This historical report does not assert coverage percentages or validated application behavior.

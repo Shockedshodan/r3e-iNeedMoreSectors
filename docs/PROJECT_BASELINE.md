@@ -12,7 +12,7 @@ This baseline originated during environment onboarding. The user subsequently re
 
 - SealHUD: https://github.com/sealhud/sealhud_source/tree/d38cdc53c5ac5b6781ebe7cdd6abb012e16bc79b — pinned by the user. Local checkout: `/workspace/references/sealhud_source`.
 - RaceRoom API: https://github.com/kwstudios-sweden/r3e-api — inspected at `e57a72fcafd74fcb1b0e7b5ca38a1a0aa59d74cb` on 2026-11-11. Local checkout: `/workspace/references/r3e-api`. This revision records the inspected version, not a user-selected version pin.
-- Development checkout: `/workspace/r3e-iNeedMoreSectors`. It initially contains only `README.md`; implementation has not started.
+- Development checkout: `/workspace/r3e-iNeedMoreSectors`. At onboarding it contained only `README.md`; current implementation status is in [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md).
 
 ## Supplied handoff (verbatim)
 
@@ -106,8 +106,8 @@ These observations supplement the handoff; they do not replace its requirements.
 - `LapValidState` documents `-1` unavailable, `0` current/next valid, `1` current invalid, and `2` current/next invalid. `PrevLapValid` documents `-1` unavailable, `0` invalid, and `1` valid. Do not treat the flags as interchangeable.
 - The API documentation does not guarantee field update order or an atomic finish snapshot. Finish reconciliation, continuity thresholds, hotkey delivery, embedded-browser connectivity, persistence in RaceRoom, and delta accuracy require live validation.
 
-## Environment working rules
+## Historical onboarding scope
 
-Use the existing development checkout. Each cloud task is isolated; do not create a Git worktree unless the user explicitly requests one. Reference checkouts remain separate from application source. During onboarding, keep tracked source, tests, dependency declarations, and lockfiles unchanged. Installing and building the reference HUD validates that toolchain, not the unimplemented timer.
+Onboarding used separate development and reference checkouts and left tracked source, tests, dependency declarations and lockfiles unchanged. Building the reference HUD validated its toolchain, not the timer. These were onboarding constraints; follow active session instructions for current implementation work.
 
-Current setup commands, results, and external blockers are recorded in `ENVIRONMENT_SETUP.md` alongside this document.
+Historical setup results and the unconfirmed platform configuration save are recorded in [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md). Use [RUNNING.md](RUNNING.md) for current setup commands.

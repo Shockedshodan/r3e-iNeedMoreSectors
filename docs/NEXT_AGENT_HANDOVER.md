@@ -18,8 +18,6 @@ The epic groups executable Alloy tasks and explicit manual gates; it is not an e
 
 The timing core, rendered HUD, SealHUD-derived controls, modular discovery, RaceRoom adapter and diagnostic capture/replay/analysis tools are implemented and tested. **Ordinary live Best/Opt record saving is still disabled.** No real RaceRoom capture campaign or in-game acceptance has been performed in this cloud environment. The next milestone is evidence collection on the Windows game machine, followed by regression-driven reconciliation fixes and measured live profiles.
 
-The original handover delivery was requested separately. The current request is to implement the hosted-HUD setup and guides and turn remaining work into an Alloy epic. Earlier requirements for TDD and authorized reuse from the pinned SealHUD source still apply; preserve the upstream notices.
-
 ## Read first
 
 | Document | Purpose |
@@ -33,7 +31,7 @@ The original handover delivery was requested separately. The current request is 
 | [TDD_PLAN.md](TDD_PLAN.md) | Test-first contracts and implementation approach |
 | [../AGENTS.md](../AGENTS.md) | Current repository workflow, including Beads |
 
-Some baseline/onboarding sections and the original RED checkpoint describe the historical empty repository or unimplemented UI. Read their status introductions and current progress before treating those statements as present-day blockers. The original supplied handoff remains intact as historical source material.
+The original supplied handoff and RED checkpoint remain historical source material; use the implementation progress report for delivered behavior.
 
 ## Required product behavior
 
@@ -86,7 +84,7 @@ The browser only opts into candidate record authorization for `demo=1`, using se
 
 ## Reproduce and verify
 
-Use Node 24, the committed lockfile and the existing checkout. The original `/workspace/r3e-iNeedMoreSectors` path was environment-specific; run commands from the actual repository root.
+Use Node 24, the committed lockfile and the actual repository root.
 
 ```sh
 npm ci
@@ -145,7 +143,7 @@ If reliable final association cannot be established, preserve conservative rejec
 
 ## Repository workflow and environment caveats
 
-Read [../.agents/skills/beads/SKILL.md](../.agents/skills/beads/SKILL.md), then use `bd prime` and the issue tracker for durable work tracking. Beads is available in the environment where the current epic was created. The original cloud handover reported `bd: command not found` and made no issue database updates; that is historical context, not a current blocker. Issues live in the local Dolt database; the passive JSONL export is ignored and must not be edited by hand. Generated Alloy state is also ignored; project recipes remain versioned. This prevents routine tracking updates from making Alloy reject the checkout as dirty. This document supplies product context; Beads supplies task status. The operator subsequently requested local Alloy execution, including its local commit prerequisites; remote pushes, publishing and Dolt remote sync remain separate actions governed by current session authority.
+Read [../.agents/skills/beads/SKILL.md](../.agents/skills/beads/SKILL.md), then use `bd prime` and the issue tracker for durable work tracking. Issues live in the local Dolt database; the passive JSONL export is ignored and must not be edited by hand. Generated Alloy state is also ignored; project recipes remain versioned. This document supplies product context; Beads supplies task status. Commit, push, publishing and Dolt remote sync authority comes from active session instructions, not this historical handover.
 
 Upstream reference checkouts were `/workspace/references/sealhud_source` at user-pinned `d38cdc53c5ac5b6781ebe7cdd6abb012e16bc79b` and `/workspace/references/r3e-api` at inspected `e57a72fcafd74fcb1b0e7b5ca38a1a0aa59d74cb`. They are separate from application source and may need fetching in a fresh environment. Sources are linked in `PROJECT_BASELINE.md`. Preserve [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) and the complete SealHUD MIT notice emitted with production assets.
 
