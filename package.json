@@ -1,0 +1,16 @@
+{
+  "name": "r3e-ineedmoresectors",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "test": "node --test --test-reporter=spec \"tests/*.test.ts\"",
+    "test:watch": "node --test --watch --test-reporter=spec \"tests/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "typescript": "5.9.3"
+  }
+}
