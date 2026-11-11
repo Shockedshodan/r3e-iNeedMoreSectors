@@ -6,7 +6,9 @@ The application uses one polling WebSocket connection to the SealHUD-compatible 
 
 ## Supported input
 
-The implemented first protocol is shared-memory **3.6**, practice (`SessionType=0`), player control (`ControlType=0`). Raw field names follow the pinned API and SealHUD references in [PROJECT_BASELINE.md](PROJECT_BASELINE.md).
+Compatibility is field-based across the normal HUD, browser bridge and replay: usable identity and player timing fields determine intake, not an exact API version or version allowlist. Observed API **2.8** packets and synthetic alternate-minor packets use the same adapter path. Capture and analysis preserve received version metadata without a version gate. No manual version approval or compatibility override is needed, and no upgrade to API 3.6 is required for compatible input. Missing or malformed required fields and unsupported sessions retain specific errors. Collection remains scoped to practice (`SessionType=0`), player control (`ControlType=0`). Raw field names follow the pinned API and SealHUD references in [PROJECT_BASELINE.md](PROJECT_BASELINE.md).
+
+Live record saving remains disabled pending separate real-telemetry validation; admitting compatible telemetry does not authorize record writes.
 
 | Raw fields | Normalized interpretation |
 | --- | --- |

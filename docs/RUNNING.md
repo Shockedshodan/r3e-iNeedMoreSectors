@@ -66,7 +66,7 @@ Run exactly one compatible CrewChief or `dash.exe` bridge exposing the SealHUD p
 
 The app defaults to that bridge. The `ws` query parameter accepts a `host:port` or full `ws://` / `wss://` address, without embedded credentials. A host-only address receives the `/r3e` path. Port 8070 is the native bridge port; port 3000 serves the website.
 
-The current adapter supports API **3.6**, player-controlled **practice** sessions. Unsupported versions and modes are reported rather than guessed. The game and native Windows shared-memory reader are not bundled.
+The current adapter uses field-based compatibility for player-controlled **practice** sessions, including observed API **2.8** input. Version metadata is preserved rather than used as an intake gate. Missing or malformed required timing fields and unsupported sessions are reported specifically. The game and native Windows shared-memory reader are not bundled.
 
 **Live record saving is disabled pending real telemetry validation.** The UI reports this state. Synthetic/browser tests establish implementation behavior, not raw field ordering in the game. Review [TELEMETRY_PROTOCOL.md](TELEMETRY_PROTOCOL.md) before enabling a live-writing path.
 
@@ -123,7 +123,7 @@ Screen/video annotations are optional independent checks for disputed protocol s
 | --- | --- |
 | Page does not load | For local use, keep the website/collector terminal running and match its port to the launch option. For Pages, inspect the deployment and preserve the trailing project-path slash. |
 | Page loads but waits for telemetry | Start exactly one real CrewChief/dash bridge, check port 8070 for another service, stop the synthetic bridge, and verify any `ws=` override. Localhost refers to the machine running the HUD browser. |
-| Unsupported telemetry or session | Confirm API 3.6, player-controlled practice and the exact chosen bridge build. A connection alone does not make another API/session supported. |
+| Unsupported telemetry or session | Inspect the reported missing/malformed timing fields or session error, confirm player-controlled practice and record the exact chosen bridge build. See [field-based compatibility](TELEMETRY_PROTOCOL.md); no version upgrade or manual approval is needed for compatible input. |
 | Empty sectors or delta | Check Off mode and visibility first. Live saving is currently disabled, so no new live Best/Opt reference is expected; use Edit layout for previews or the isolated synthetic demo for rendered timing. |
 | Capture start/save fails | Use the collector's local port-3200 page, not Pages or the normal port-3000 server. Inspect the collector terminal and output-directory permissions; incomplete captures do not qualify as evidence. |
 | Settings appear reset | Check the URL's scheme, host and port, demo versus live mode, and whether this is the same browser/runtime. Storage is not shared between origins. |

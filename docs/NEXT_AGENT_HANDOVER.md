@@ -62,7 +62,7 @@ Storage failure handling retains improvements in memory, retries later, and avoi
 
 ## Protocol and integrity constraints
 
-The first supported input shape is **RaceRoom API 3.6, player-controlled practice** (`SessionType=0`, `ControlType=0`). The game/native Windows bridge is external. Default socket: `ws://localhost:8070/r3e`, polled with empty messages every 16 ms. The `ws` query parameter can select another endpoint. Diagnostics reuse this socket; do not add another telemetry poller.
+Intake uses [field-based compatibility](TELEMETRY_PROTOCOL.md), including observed **RaceRoom API 2.8**, while collection remains scoped to **player-controlled practice** (`SessionType=0`, `ControlType=0`). HUD and replay share the adapter; capture and analysis preserve original version metadata without a version gate. Compatible input needs no manual version approval, and live record saving remains disabled pending separate validation. The game/native Windows bridge is external. Default socket: `ws://localhost:8070/r3e`, polled with empty messages every 16 ms. The `ws` query parameter can select another endpoint. Diagnostics reuse this socket; do not add another telemetry poller.
 
 `LapValidState` and `PrevLapValid` are different flags. Native previous-sector values are treated as cumulative clocks, converted to durations after rounding seconds to integer microseconds. Their third endpoint must agree with the official total. These three native sectors differ from the configurable-count custom sectors.
 

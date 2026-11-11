@@ -6,7 +6,9 @@ Status: phases 1–4 are implemented after plan commit `33bf0d5`: bounded captur
 
 Make the live-writing decision reproducible: capture what the Windows HUD actually receives, compare it with independently recorded game results, replay it through the adapter and engine, and enable only a supported configuration whose behavior is demonstrated.
 
-Start with one identified CrewChief or dash build, API 3.6, and player-controlled practice. Keep demo data separate. Expand to other bridges, versions and modes only after their own evidence and regressions exist.
+Historical decision: Start with one identified CrewChief or dash build, API 3.6, and player-controlled practice. Keep demo data separate. Expand to other bridges, versions and modes only after their own evidence and regressions exist.
+
+The version-first intake decision is superseded by [field-based compatibility](TELEMETRY_PROTOCOL.md), including observed API 2.8, without manual version approval. Demo data remains separate, collection remains scoped to player-controlled practice, and live saving still requires independent validation evidence.
 
 The current 300 ms frame-gap limit, 0.3 distance-step limit and 500 ms finish timeout remain provisional until measured. A repeated stable result is not, by itself, proof of authoritative final validity.
 
