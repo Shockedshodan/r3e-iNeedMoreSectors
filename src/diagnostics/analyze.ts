@@ -20,6 +20,34 @@ export interface ConnectionAnalysis {
   uniqueSimulationUpdateGaps: GapStatistics;
 }
 export interface ObservedValue { present: boolean; value?: unknown }
+export interface ResultObservation {
+  seq: number;
+  tMs: number;
+  offsetMs: number;
+  fields: Record<string, ObservedValue>;
+  totalUs: number | null;
+  cumulativeSectorsUs: (number | null)[];
+}
+export interface ReportedLap {
+  captureId: string;
+  source: 'telemetry';
+  connectionId: number;
+  sessionId: string;
+  sessionType: number | null;
+  sessionIteration: number | null;
+  eventIndex: number | null;
+  layoutId: number | null;
+  modelId: number | null;
+  completedLap: number;
+  lapCountStep: number;
+  seq: number;
+  atMs: number;
+  coverage: 'partial-start' | 'observed';
+  association: 'reported' | 'unavailable' | 'stale' | 'ambiguous' | 'skipped';
+  totalUs: number | null;
+  finality: 'not-established';
+  observations: ResultObservation[];
+}
 export interface TimelineChange {
   seq: number;
   tMs: number;
@@ -66,6 +94,7 @@ export interface CaptureAnalysisReport {
   summary: { eventCount: number; messageCount: number; duplicateMessageCount: number; invalidTimingCount: number; malformedCount: number; transportResetEvents: number; observedStateResets: number; annotationCount: number; lossEventCount: number };
   connections: ConnectionAnalysis[];
   finishes: FinishWindow[];
+  reportedLaps: ReportedLap[];
   boundaryObservations: { connectionId: number; seq: number; tMs: number; completedLap: number | null; countProgression: boolean; timingAvailable: boolean; distanceWrapped: boolean; clockWrapped: boolean }[];
   movements: MovementObservation[];
   unknownValues: Record<string, { missing: number; null: number; unavailable: number; malformed: number }>;
@@ -117,6 +146,45 @@ function validTiming(data: Record<string, unknown>): boolean {
 function same(left: ObservedValue, right: ObservedValue): boolean {
   return left.present === right.present && Object.is(left.value, right.value);
 }
+function durationUs(observation: ObservedValue): number | null {
+  const seconds = observation.value;
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return null;
+  const value = Math.round(seconds * 1_000_000);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+interface ResultSample extends Omit<ResultObservation, 'offsetMs'> {
+  segment: number;
+  clocksChanged: boolean;
+}
+function associateReportedLap(row: ReportedLap, samples: ResultSample[], overlapping: boolean): void {
+  row.observations = samples.map(({ segment: _segment, clocksChanged: _changed, ...sample }) =>
+    ({ ...sample, offsetMs: sample.tMs - row.atMs }));
+  if (row.lapCountStep !== 1) { row.association = 'skipped'; return; }
+  if (overlapping) { row.association = 'ambiguous'; return; }
+  // The epoch's initial result is a baseline, never a fresh report. Polling
+  // stability, validity changes or cleared clocks cannot reassign it to a lap.
+  const firstFresh = samples.findIndex(sample => sample.clocksChanged && sample.totalUs !== null);
+  if (firstFresh < 0) {
+    row.association = samples.some(sample => sample.seq >= row.seq && sample.totalUs !== null) ? 'stale' : 'unavailable';
+    return;
+  }
+  const fresh = samples.slice(firstFresh);
+  const totals = new Set(fresh.map(sample => sample.totalUs));
+  const validity = new Set(fresh.map(sample => sample.fields.PrevLapValid.value).filter(value => value === 0 || value === 1));
+  const mixedSectors = fresh.some(sample => {
+    const third = sample.cumulativeSectorsUs[2];
+    return third !== null && sample.totalUs !== null && third !== sample.totalUs;
+  });
+  const conflictingSectors = [0, 1, 2].some(sector => new Set(fresh
+    .map(sample => sample.cumulativeSectorsUs[sector]).filter(value => value !== null)).size > 1);
+  if (totals.size !== 1 || validity.size > 1 || mixedSectors || conflictingSectors) {
+    row.association = 'ambiguous';
+    return;
+  }
+  row.association = 'reported';
+  row.totalUs = fresh[0].totalUs;
+}
 function gapStatistics(values: number[]): GapStatistics {
   if (values.length === 0) return { count: 0, minMs: null, maxMs: null, meanMs: null, p50Ms: null, p95Ms: null, p99Ms: null };
   const sorted = [...values].sort((a, b) => a - b);
@@ -139,6 +207,9 @@ interface ConnectionState {
   previous: Point | null;
   fingerprint: string | null;
   segment: number;
+  observedCrossing: boolean;
+  lastResultClocks: Map<string, number>;
+  results: ResultSample[];
   changes: (Omit<TimelineChange, 'offsetMs'> & { segment: number })[];
 }
 
@@ -160,7 +231,7 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
     issues: [...document.problems],
     summary: { eventCount: document.events.length, messageCount: 0, duplicateMessageCount: 0, invalidTimingCount: 0,
       malformedCount: 0, transportResetEvents: 0, observedStateResets: 0, annotationCount: 0, lossEventCount: 0 },
-    connections: [], finishes: [], boundaryObservations: [], movements: [], unknownValues: {},
+    connections: [], finishes: [], reportedLaps: [], boundaryObservations: [], movements: [], unknownValues: {},
     quantizationErrorsUs: [], losses: [],
     diagnostics: { queueHighWaterBytes: document.footer?.queueHighWaterBytes ?? null, recordedLossCount: document.footer?.lossCount ?? null },
   };
@@ -168,7 +239,7 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
   if (header.source === 'synthetic') report.issues.push('Synthetic telemetry verifies tooling, not live semantics.');
   report.issues.push('Observed field stability and latency do not establish authoritative final validity.');
   const states = new Map<number, ConnectionState>();
-  const anchors: { finish: FinishWindow; segment: number }[] = [];
+  const anchors: { finish: FinishWindow; row: ReportedLap; segment: number; timingAvailable: boolean }[] = [];
 
   function connection(id: number): ConnectionState {
     let state = states.get(id);
@@ -177,7 +248,8 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
         report: { connectionId: id, messageCount: 0, duplicateMessageCount: 0, uniqueSimulationUpdates: 0,
           unknownSimulationClockCount: 0, invalidTimingCount: 0, receiveGaps: gapStatistics([]), uniqueSimulationUpdateGaps: gapStatistics([]) },
         receiveGaps: [], updateGaps: [], lastReceiveAt: null, lastUniqueAt: null, lastSimulation: null,
-        previous: null, fingerprint: null, segment: 0, changes: [],
+        previous: null, fingerprint: null, segment: 0, observedCrossing: false,
+        lastResultClocks: new Map(), results: [], changes: [],
       };
       states.set(id, state);
     }
@@ -188,6 +260,8 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
     state.fingerprint = null;
     state.lastUniqueAt = null;
     state.lastSimulation = null;
+    state.observedCrossing = false;
+    state.lastResultClocks.clear();
     if (transport) state.lastReceiveAt = null;
     state.segment += 1;
   }
@@ -228,8 +302,12 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
     }
     const prior = state.previous;
     const point: Point = { seq: event.seq, tMs: event.tMs, data, segment: state.segment };
+    const fields: Record<string, ObservedValue> = {};
+    let resultsChanged = false;
+    let clocksChanged = false;
     for (const field of FIELDS) {
       const after = read(data, field);
+      fields[field] = after;
       const before = prior ? read(prior.data, field) : { present: false };
       const unknown = report.unknownValues[field] ??= { missing: 0, null: 0, unavailable: 0, malformed: 0 };
       if (!after.present) unknown.missing += 1;
@@ -240,9 +318,19 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
         const source = field === 'Source' && (after.value === 'live' || after.value === 'debug');
         if (!debugFlag && !source && (typeof after.value !== 'number' || !Number.isFinite(after.value))) unknown.malformed += 1;
       }
-      if (!same(before, after)) state.changes.push({
-        seq: event.seq, tMs: event.tMs, field, before, after, initial: prior === null, segment: state.segment,
-      });
+      if (!same(before, after)) {
+        state.changes.push({ seq: event.seq, tMs: event.tMs, field, before, after, initial: prior === null, segment: state.segment });
+        if (RESULT_FIELDS.has(field)) resultsChanged = true;
+      }
+      if (RESULT_CLOCKS.has(field)) {
+        const clock = durationUs(after);
+        // Unavailable samples retain the last available clock: restoring it
+        // does not provide evidence of a new result in this segment.
+        if (clock !== null) {
+          if (clock !== state.lastResultClocks.get(field)) clocksChanged = true;
+          state.lastResultClocks.set(field, clock);
+        }
+      }
     }
     const fingerprint = JSON.stringify(FIELDS.map(field => read(data, field)));
     if (fingerprint === state.fingerprint) {
@@ -277,13 +365,6 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
       const previousDistance = number(prior.data, 'LapDistanceFraction')!;
       distanceWrapped = distance < previousDistance;
       clockWrapped = number(data, 'LapTimeCurrentSelf')! < number(prior.data, 'LapTimeCurrentSelf')!;
-      if (lapStep > 0) anchors.push({
-        segment: state.segment,
-        finish: { connectionId: event.connectionId, seq: event.seq, atMs: event.tMs,
-          completedLap: count!, lapCountStep: lapStep, distanceWrapped, clockWrapped,
-          timeline: [], firstChangedResultOffsetMs: null, lastObservedResultChangeOffsetMs: null,
-          overlappingCrossings: false, finality: 'not-established' },
-      });
       const distanceStep = lapStep === 0 && distance >= previousDistance ? distance - previousDistance
         : lapStep === 1 && distanceWrapped ? 1 - previousDistance + distance : null;
       const length = number(data, 'LayoutLength');
@@ -299,6 +380,31 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
           ? Math.max(speed, oldSpeed) * simulationDelta : null,
       });
     }
+    if (prior === null || resultsChanged || countProgression) state.results.push({
+      seq: event.seq, tMs: event.tMs, segment: state.segment, fields,
+      clocksChanged: prior !== null && clocksChanged,
+      totalUs: durationUs(fields.LapTimePreviousSelf),
+      cumulativeSectorsUs: [1, 2, 3].map(sector => durationUs(fields[`SectorTimesPreviousSelf.Sector${sector}`])),
+    });
+    if (countProgression && count !== null && priorCount !== null) {
+      const lapCountStep = count - priorCount;
+      const row: ReportedLap = {
+        captureId: header.captureId, source: 'telemetry', connectionId: event.connectionId,
+        sessionId: `${header.captureId}:${event.connectionId}:${state.segment}`,
+        sessionType: number(data, 'SessionType'), sessionIteration: number(data, 'SessionIteration'),
+        eventIndex: number(data, 'EventIndex'), layoutId: number(data, 'LayoutId'), modelId: number(data, 'VehicleInfo.ModelId'),
+        completedLap: count, lapCountStep, seq: event.seq, atMs: event.tMs,
+        coverage: state.observedCrossing ? 'observed' : 'partial-start',
+        association: 'unavailable', totalUs: null, finality: 'not-established', observations: [],
+      };
+      anchors.push({ segment: state.segment, row, timingAvailable,
+        finish: { connectionId: event.connectionId, seq: event.seq, atMs: event.tMs,
+          completedLap: count, lapCountStep, distanceWrapped, clockWrapped,
+          timeline: [], firstChangedResultOffsetMs: null, lastObservedResultChangeOffsetMs: null,
+          overlappingCrossings: false, finality: 'not-established' },
+      });
+      state.observedCrossing = true;
+    }
     if (countProgression || distanceWrapped || clockWrapped) report.boundaryObservations.push({
       connectionId: event.connectionId, seq: event.seq, tMs: event.tMs, completedLap: count,
       countProgression, timingAvailable, distanceWrapped, clockWrapped,
@@ -312,12 +418,21 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
     state.previous = point;
   }
 
-  for (const { finish, segment } of anchors) {
+  for (const { finish, row, segment, timingAvailable } of anchors) {
     const state = states.get(finish.connectionId)!;
+    // A result between two crossings can fall in both windows even when
+    // neither crossing lies inside the other's window.
+    const neighbors = anchors.filter(other => other.finish !== finish && other.segment === segment
+      && other.finish.connectionId === finish.connectionId && Math.abs(other.finish.atMs - finish.atMs) <= 2 * windowMs);
+    const samples = state.results.filter(sample => sample.segment === segment && Math.abs(sample.tMs - finish.atMs) <= windowMs);
+    const sharedResult = neighbors.some(other => Math.abs(other.finish.atMs - finish.atMs) <= windowMs
+      || samples.some(sample => sample.clocksChanged && sample.totalUs !== null && Math.abs(sample.tMs - other.finish.atMs) <= windowMs));
+    associateReportedLap(row, samples, sharedResult);
+    report.reportedLaps.push(row);
+    if (!timingAvailable) continue;
     finish.timeline = state.changes.filter(change => change.segment === segment && Math.abs(change.tMs - finish.atMs) <= windowMs)
       .map(({ segment: _segment, ...change }) => ({ ...change, offsetMs: change.tMs - finish.atMs }));
-    finish.overlappingCrossings = anchors.some(other => other.finish !== finish && other.segment === segment
-      && other.finish.connectionId === finish.connectionId && Math.abs(other.finish.atMs - finish.atMs) <= windowMs);
+    finish.overlappingCrossings = neighbors.some(other => other.timingAvailable && Math.abs(other.finish.atMs - finish.atMs) <= windowMs);
     if (!finish.overlappingCrossings) {
       const clocks = finish.timeline.filter(change => !change.initial && RESULT_CLOCKS.has(change.field));
       const results = finish.timeline.filter(change => !change.initial && RESULT_FIELDS.has(change.field));
