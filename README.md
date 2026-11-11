@@ -10,7 +10,7 @@ completed TDD steps and the remaining SealHUD UI and live-bridge work.
 
 ## Acknowledgements
 
-Thank you to the authors and contributors of these upstream repositories:
+My water greedy llm agents shamelessly appropriated code from a repositories below, and it's fair to acknowledge that it's not my intellectual property, and I piggibacking on other people effort:
 
 - [SealHUD (`sealhud/sealhud_source`)](https://github.com/sealhud/sealhud_source/tree/d38cdc53c5ac5b6781ebe7cdd6abb012e16bc79b)
   — the user-pinned reference for the HUD architecture and planned reuse of
