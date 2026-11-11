@@ -91,11 +91,12 @@ export interface TimingEngineOptions {
   maxFrameGapMs: number;
   maxDistanceStep: number;
   finishTimeoutMs: number;
-  onImprovement(update: RecordUpdate): void;
+  onImprovement(update: RecordUpdate, candidate: LapCandidate): void;
 }
 
 export interface TimingEngine {
   consume(frame: TimingFrame): void;
+  synchronizeRecords(recovered: RecordBook): void;
   records(): RecordBook;
   comparisonSnapshot(): RecordBook;
   pendingFinishCount(): number;

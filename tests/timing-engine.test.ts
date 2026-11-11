@@ -388,3 +388,143 @@ test('disposing the engine stops capture and reconciliation callbacks', () => {
   assert.deepEqual(engine.records(), book());
   assert.equal(engine.pendingFinishCount(), 0);
 });
+
+test('interpolated custom boundaries round absolute times once and retain exact total agreement', () => {
+  const { engine, improvements } = setup();
+  consume(engine, [
+    frame(),
+    frame({ observedAtMs: 300, distanceFraction: 0.3, lapElapsedUs: 300_000 }),
+    frame({ observedAtMs: 600, distanceFraction: 0.6, lapElapsedUs: 600_001 }),
+    frame({ observedAtMs: 900, distanceFraction: 0.9, lapElapsedUs: 900_000 }),
+    frame({ observedAtMs: 1000, completedLaps: 1, finishResult: result() }),
+  ]);
+  assert.equal(improvements.length, 1);
+  assert.deepEqual(engine.records().best?.sectors.map(sector => sector.durationUs), [500_001, 499_999]);
+  assert.equal(engine.records().best?.totalUs, 1_000_000);
+  for (const sector of engine.records().best!.sectors) {
+    assert.deepEqual(sector.curve.at(-1), { fraction: 1, elapsedUs: sector.durationUs });
+  }
+});
+
+test('an interruption at the lap origin cannot be forgotten by restarting capture within that same lap', () => {
+  for (const interruption of [{ source: 'debug' } as const, { completedLaps: Number.NaN }]) {
+    const { engine, improvements } = setup();
+    engine.consume(frame());
+    engine.consume(frame({ observedAtMs: 10, ...interruption }));
+    consume(engine, completeLapFrames().map(value => ({ ...value, observedAtMs: value.observedAtMs + 20 })));
+    assert.equal(improvements.length, 0);
+    assert.deepEqual(engine.records(), book());
+  }
+});
+
+test('nonfinite or unavailable normalized frame data cannot authorize a record', () => {
+  const malformed: Partial<TimingFrame>[] = [
+    { observedAtMs: Number.NaN }, { distanceFraction: Number.NaN },
+    { distanceFraction: -1 }, { distanceFraction: 1.01 },
+    { lapElapsedUs: Number.POSITIVE_INFINITY }, { lapElapsedUs: -1 },
+    { completedLaps: -1 }, { completedLaps: 0.5 },
+  ];
+  for (const invalid of malformed) {
+    const { engine, improvements } = setup();
+    const frames = completeLapFrames();
+    frames[2] = { ...frames[2], ...invalid };
+    consume(engine, frames);
+    assert.equal(improvements.length, 0);
+    assert.deepEqual(engine.records(), book());
+  }
+});
+
+test('an official total below the last captured clock is incoherent even when its native sectors sum exactly', () => {
+  const { engine, improvements } = setup();
+  consume(engine, completeLapFrames(result({
+    totalUs: 700_000, officialSectorDurationsUs: [200_000, 200_000, 300_000],
+  })));
+  assert.equal(improvements.length, 0);
+  assert.deepEqual(engine.records(), book());
+});
+
+test('caller mutation of the initial book cannot change the engine combination identity', () => {
+  const initial = book();
+  const { engine, improvements } = setup(initial);
+  initial.layoutId = 999;
+  initial.modelId = 999;
+  consume(engine, completeLapFrames());
+  assert.equal(improvements.length, 1);
+  assert.equal(engine.records().layoutId, 10);
+  assert.equal(engine.records().modelId, 20);
+  assert.equal(engine.records().best?.totalUs, 1_000_000);
+});
+
+test('recovered records improve immediately without changing the active snapshot or interrupting capture', () => {
+  const seed = deepFreeze(book([600_000, 600_000]));
+  const recovered = deepFreeze(book([500_000, 500_000]));
+  const { engine, improvements } = setup(seed);
+  consume(engine, [
+    frame(),
+    frame({ observedAtMs: 200, distanceFraction: 0.25, lapElapsedUs: 200_000 }),
+  ]);
+
+  engine.synchronizeRecords(recovered);
+  assert.deepEqual(engine.records(), recovered);
+  assert.deepEqual(engine.comparisonSnapshot(), seed);
+  assert.equal(improvements.length, 0, 'recovery does not emit a captured-lap improvement');
+
+  consume(engine, [
+    frame({ observedAtMs: 400, distanceFraction: 0.5, lapElapsedUs: 400_000 }),
+    frame({ observedAtMs: 700, distanceFraction: 0.75, lapElapsedUs: 700_000 }),
+    frame({ observedAtMs: 1000, completedLaps: 1, finishResult: result() }),
+  ]);
+  assert.equal(improvements.length, 1, 'the pre-recovery capture survives and legitimately improves Opt');
+  assert.equal(improvements[0].bestChanged, false);
+  assert.equal(improvements[0].optChanged, true);
+  assert.deepEqual(engine.records().best, recovered.best);
+  assert.deepEqual(engine.records().opt?.sectors.map(sector => sector.durationUs), [400_000, 500_000]);
+  assert.deepEqual(engine.comparisonSnapshot(), recovered, 'the new lap snapshots recovered references before finish reconciliation');
+});
+
+test('slower recovered references never regress the current Best or Opt', () => {
+  const seed = deepFreeze(book([400_000, 500_000]));
+  const { engine, improvements } = setup(seed);
+  engine.synchronizeRecords(book([600_000, 600_000]));
+  assert.deepEqual(engine.records(), seed);
+  assert.equal(improvements.length, 0);
+});
+
+test('recovery merges Opt sectors independently while preserving the tied complete Best lap', () => {
+  const seed = deepFreeze(book([400_000, 500_000]));
+  const recovered = deepFreeze(book([450_000, 450_000]));
+  const { engine, improvements } = setup(seed);
+  engine.synchronizeRecords(recovered);
+  assert.deepEqual(engine.records().best, seed.best);
+  assert.deepEqual(engine.records().opt?.sectors.map(sector => sector.durationUs), [400_000, 450_000]);
+  assert.equal(engine.records().opt?.totalUs, 850_000);
+  assert.equal(improvements.length, 0);
+});
+
+test('recovery cannot discard the previous pending finish or change the next lap snapshot', () => {
+  const seed = deepFreeze(book([600_000, 600_000]));
+  const recovered = deepFreeze(book([400_000, 400_000]));
+  const { engine, improvements } = setup(seed);
+  consume(engine, completeLapFrames(null));
+  engine.synchronizeRecords(recovered);
+  assert.equal(engine.pendingFinishCount(), 1);
+  assert.deepEqual(engine.comparisonSnapshot(), seed);
+  engine.consume(nextLapFrame(1250, { finishResult: result() }));
+  assert.equal(engine.pendingFinishCount(), 0);
+  assert.deepEqual(engine.records(), recovered);
+  assert.equal(improvements.length, 0);
+});
+
+test('recovered records with another combination or definition are rejected without changing state', () => {
+  const seed = deepFreeze(book([600_000, 600_000]));
+  for (const mismatch of [
+    { layoutId: 11 }, { modelId: 21 }, { boundaries: [0, 0.25, 1] },
+  ]) {
+    const { engine, improvements } = setup(seed);
+    engine.consume(frame());
+    assert.throws(() => engine.synchronizeRecords({ ...book([500_000, 500_000]), ...mismatch }), RangeError);
+    assert.deepEqual(engine.records(), seed);
+    assert.deepEqual(engine.comparisonSnapshot(), seed);
+    assert.equal(improvements.length, 0);
+  }
+});

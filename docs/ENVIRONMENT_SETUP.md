@@ -2,7 +2,7 @@
 
 Validated on 2026-11-11. Read `PROJECT_BASELINE.md` for the user-supplied requirements and architecture handoff.
 
-This report describes the initial onboarding validation. The subsequent user-authorized TDD work adds an application-local test harness, contracts and intentionally unimplemented seams; see [TDD_PLAN.md](TDD_PLAN.md) and [TDD_RESULTS.md](TDD_RESULTS.md). Reproduce that harness from the application checkout with `npm ci`, then `npm run typecheck` and `npm test`. The test suite is intentionally RED; this does not invalidate the earlier successful upstream build. The older proposed environment configuration file does not yet include application-local test setup, and its platform save remains unconfirmed.
+This report describes the initial onboarding validation. Subsequent TDD work added the application-local test harness and has now implemented the timing core and headless integration; see [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md). Reproduce the green suite from the application checkout with `npm ci`, then `npm run typecheck` and `npm test`. The original RED checkpoint remains in [TDD_RESULTS.md](TDD_RESULTS.md). The older proposed environment configuration file does not yet include application-local test setup, and its platform save remains unconfirmed.
 
 ## Prepared workflow
 

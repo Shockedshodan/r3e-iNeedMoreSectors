@@ -157,3 +157,60 @@ test('layout editing gives both hidden widgets placement previews without a real
   assert.equal(view.delta.preview, true);
   assert.equal(view.delta.valueUs, null);
 });
+
+test('corrupt preferences are ignored without rewriting storage on read', () => {
+  const storage = new MemoryStorage();
+  storage.values.set(preferencesKey, '{broken JSON');
+  const controller = createReferenceController(storage);
+  assert.equal(controller.mode(), 'off');
+  assert.equal(storage.writes.length, 0);
+  assert.equal(typeof controller.binding().code, 'string');
+  assert.notEqual(controller.binding().code, '');
+});
+
+test('denied preference reads and writes preserve usable in-memory selection', () => {
+  const storage = new MemoryStorage();
+  storage.failReads = true;
+  storage.failWrites = true;
+  const controller = createReferenceController(storage);
+  controller.setBinding(binding);
+  assert.equal(controller.handleKey(key(), false), true);
+  assert.equal(controller.mode(), 'opt');
+  assert.deepEqual(controller.binding(), binding);
+  storage.failReads = false;
+  storage.failWrites = false;
+  controller.cycle();
+  const restored = createReferenceController(storage);
+  assert.equal(restored.mode(), 'best');
+  assert.deepEqual(restored.binding(), binding);
+});
+
+test('a malformed saved binding cannot become an unmodified accidental hotkey', () => {
+  const storage = new MemoryStorage();
+  storage.values.set(preferencesKey, JSON.stringify({ mode: 'opt', binding: { code: 'KeyT' } }));
+  const controller = createReferenceController(storage);
+  const restored = controller.binding();
+  for (const modifier of ['altKey', 'ctrlKey', 'shiftKey', 'metaKey'] as const) {
+    assert.equal(typeof restored[modifier], 'boolean');
+  }
+  assert.equal(storage.writes.length, 0);
+});
+
+test('binding updates and reads do not expose mutable controller state', () => {
+  const controller = createReferenceController(new MemoryStorage());
+  const supplied = { ...binding };
+  controller.setBinding(supplied);
+  supplied.code = 'KeyQ';
+  assert.deepEqual(controller.binding(), binding);
+  const exposed = controller.binding();
+  exposed.altKey = false;
+  assert.deepEqual(controller.binding(), binding);
+  assert.equal(controller.handleKey(key(), false), true);
+});
+
+test('invalid new bindings are rejected without replacing a valid binding', () => {
+  const controller = createReferenceController(new MemoryStorage());
+  controller.setBinding(binding);
+  assert.throws(() => controller.setBinding({ ...binding, code: '' }), RangeError);
+  assert.deepEqual(controller.binding(), binding);
+});

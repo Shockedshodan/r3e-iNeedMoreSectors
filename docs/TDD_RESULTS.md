@@ -1,4 +1,6 @@
-# RED baseline results
+# Original RED baseline results
+
+This historical report records the tests-first commit `826e507`. The current implementation has moved to GREEN; see [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md).
 
 Executed on 2026-11-11 in `/workspace/r3e-iNeedMoreSectors`, with Node v24.22.1 and npm 11.9.0.
 
@@ -25,4 +27,4 @@ The last full runner output is retained locally at `.test-results/red.log` (igno
 
 Review also checked the nonlinear timing arithmetic, the verbatim handoff, and the distinction between synthetic normalized finish associations and unproven native field order. The upstream SealHUD and RaceRoom API checkouts remain unchanged.
 
-See [TDD_PLAN.md](TDD_PLAN.md) for the audit, proposed contracts, implementation order, and deferred browser/live acceptance. Start the first green increment with `tests/sector-definition.test.ts`; the whole suite is expected to remain RED until all initial behavior is implemented. This report does not assert coverage percentages or validated application behavior.
+See [TDD_PLAN.md](TDD_PLAN.md) for the audit, proposed contracts, implementation order, and deferred browser/live acceptance. At this original checkpoint the whole suite was intentionally RED; that checkpoint has now been superseded by the green implementation report. This historical report does not assert coverage percentages or validated application behavior.

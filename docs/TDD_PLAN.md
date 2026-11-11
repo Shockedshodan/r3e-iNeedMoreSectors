@@ -15,7 +15,7 @@ This conclusion applies to the pinned source inspected here. It is not a claim a
 
 Use the requirements in [PROJECT_BASELINE.md](PROJECT_BASELINE.md). First specify pure timing behavior, then connect it through the module host, then implement rendering and the real bridge adapter. Keep engine tests independent of SealHUD imports, which start network connections and unrelated services.
 
-This change is the RED phase. `src/contracts.ts` defines proposed seams and other source files only export throwing placeholders. No sector algorithm, capture state machine, storage repository, host, or timer UI has been implemented. The tests are executable specifications, not skipped tests, TODOs, or a passing mock application.
+The initial TDD commit established the RED phase with typed, throwing placeholders. The timing core and headless integration now implement those contracts; see [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) for the current green milestone. React rendering, build discovery and the native bridge adapter remain later steps. Tests remain executable specifications, not skipped tests or a passing mock application.
 
 Use Node 24's built-in test runner and TypeScript stripping. The test runner adds no dependency; the only development dependencies are pinned TypeScript and Node types. Test times and telemetry are supplied explicitly, so there are no sleeps, network calls, RaceRoom installations, or system-clock dependencies in these specifications. Storage and bridge fakes expose observable effects; expected timing values are hand-calculated rather than derived by a second timing algorithm.
 
@@ -27,7 +27,7 @@ npm run typecheck
 npm test
 ```
 
-For local iterations, `npm run test:watch` watches the suite. Target a single file with `node --test tests/curves.test.ts` or a behavior with `node --test --test-name-pattern='snapshot' tests/timing-engine.test.ts`. The current RED suite intentionally exits nonzero. Type checking must pass even while behavior is unimplemented. Never mask that exit code, mark tests as expected failures, loosen assertions merely to turn the report green, or turn an empty run into a success claim.
+For local iterations, `npm run test:watch` watches the suite. Target a single file with `node --test tests/curves.test.ts` or a behavior with `node --test --test-name-pattern='snapshot' tests/timing-engine.test.ts`. The initial RED run intentionally exited nonzero; the current headless suite passes. New behavior still starts with a failing test. Never mask that exit code, mark tests as expected failures, loosen assertions merely to turn the report green, or turn an empty run into a success claim.
 
 ## Initial executable specifications
 
@@ -56,6 +56,7 @@ These are implementation proposals made for deterministic tests, separately from
 - `updateRecords` treats a combination/boundary mismatch as caller misuse (`RangeError`); invalid/partial/malformed candidate laps produce no improvement. Invalid lengths/curve definitions also raise `RangeError`.
 - Root-storage record keys are `r3e-sectors:v1:records:<layoutId>:<modelId>`. The v1 envelope contains only version, layout/model identity, boundary compatibility information, and the two active references. It contains no livery ID, non-record laps, or previous versions. Layout-definition metadata and UI preferences remain separate. Host-provided module storage adds isolation; its prefix spelling is deliberately unspecified.
 - Unknown/corrupt/incompatible saved records are ignored without rewriting them on read. An actual improvement may replace the entry. Storage failures keep the latest improvement in memory and mark it dirty for retry.
+- A denied storage read does not mean an empty record database. Writes wait until reads recover; recovered complete Best and independent Opt sectors merge before saving. Engine recovery synchronization updates available records without changing the active lap's comparison snapshot or capture. Layout boundaries are frozen across models within the repository lifetime; persisting the layout-definition registry across application starts is still integration work.
 
 ### Capture and finish association
 
@@ -74,6 +75,7 @@ These are implementation proposals made for deterministic tests, separately from
 - Ignore repeated keys and input, textarea, select and contenteditable targets. Placement locking does not block the reference action. A future DOM adapter must forward the actual target/editability state correctly.
 - The headless view model supports independent visibility and editing previews. Tests do not prescribe pixel styling or mock sample times as real deltas.
 - Modules register descriptors and actions through the host. The timing module uses `timing.cycleReference`. The host owns one telemetry connection and isolated module storage, removes subscriptions on disposal, and rolls back partial initialization. Runtime registration tests precede a separate Webpack discovery test; they do not prove build-time discovery already exists.
+- The controller currently defaults to Alt+T and allows rebinding through its API. This is provisional; neither browser event wiring nor hotkey delivery while driving is implemented by the headless feature. The engine improvement callback passes the actual complete `LapCandidate` alongside its merged update, so persistence never mistakes a stitched Opt for a complete Best lap.
 
 ## Implementation sequence: red → green → refactor
 
@@ -87,8 +89,8 @@ For each slice, inspect a failing behavior, implement the minimum real behavior,
 6. **Browser integration.** Before the real UI integration, add a project-local Playwright harness and a local deterministic WebSocket bridge. Test rendered sector values and continuous saved-reference delta, drag/scale/edit/lock behavior, rebinding, reload persistence, connection interruption, and adding/removing a module. Reuse deterministic fixtures; verify requests/messages and visible output, not just an open port. These are future RED tests, not checks claimed as already written or run.
 7. **Real bridge and live acceptance.** Capture consented practice-mode telemetry on Windows, document actual native field order and units, and write replayable adapter regressions **before enabling writes**. Verify unchanged consecutive previous times, invalidity timing, reconnections, finish timeout/continuity limits, embedded-browser WebSocket access, persistence, hotkey delivery while driving and delta accuracy. Keep record writes disabled until association and validity are demonstrated; a synthetic normalized association is not evidence that the bridge can produce one safely.
 
-After the initial suite becomes green, CI should run `npm ci`, type checking, and the tests; then add production-build and browser jobs when those workflows exist. Do not introduce a permanently green job by excluding the current RED specifications. A default `npm test` failure is intentional at this stage and must be visible to the next implementer.
+The initial suite is now green. `.github/workflows/test.yml` runs `npm ci`, type checking and the entire suite on pushes and pull requests. Add production-build and browser jobs when those workflows exist. New RED tests must remain visible until their behavior is implemented; do not exclude them to keep CI green.
 
 ## Current verification
 
-See [TDD_RESULTS.md](TDD_RESULTS.md) for the measured test count and exit statuses of this RED baseline. No live RaceRoom acceptance has been performed.
+See [TDD_RESULTS.md](TDD_RESULTS.md) for the original RED baseline and [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) for the current green milestone. No live RaceRoom acceptance has been performed.

@@ -81,3 +81,9 @@ test('unavailable current clock cannot produce a delta', () => {
   assert.equal(referenceDeltaUs(lap(), definition, 0.5, -1), null);
   assert.equal(referenceDeltaUs(lap(), definition, 0.5, Number.NaN), null);
 });
+
+test('a mismatched or malformed reference has no comparison', () => {
+  assert.equal(referenceElapsedUs(lap([1_000_000]), definition, 0.5), null);
+  assert.equal(referenceElapsedUs({ ...lap(), totalUs: 1 }, definition, 0.5), null);
+  assert.equal(referenceElapsedUs(lap(), { ...definition, boundaries: [0, 0.8, 0.5, 1] }, 0.5), null);
+});

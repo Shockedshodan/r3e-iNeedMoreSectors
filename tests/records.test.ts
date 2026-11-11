@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createRecordRepository, recordStorageKey, updateRecords } from '../src/records.ts';
+import { createRecordRepository, mergeRecordBooks, recordStorageKey, updateRecords } from '../src/records.ts';
 import { book, candidate, combination, deepFreeze, definition, lap, MemoryStorage } from './helpers.ts';
 import type { LapCandidate, RecordBook } from '../src/contracts.ts';
 
@@ -66,6 +66,23 @@ for (const [name, overrides] of [
 
 test('a lap from another model cannot contaminate existing records', () => {
   assert.throws(() => updateRecords(book(), candidate(undefined, { modelId: 99 })), RangeError);
+});
+
+test('record identity rejects unavailable, fractional and nonfinite IDs', () => {
+  for (const id of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => recordStorageKey({ ...combination, layoutId: id }), RangeError);
+    assert.throws(() => recordStorageKey({ ...combination, modelId: id }), RangeError);
+  }
+});
+
+test('accepted references do not alias later mutations of a capture curve', () => {
+  const curve = [{ fraction: 0, elapsedUs: 0 }, { fraction: 1, elapsedUs: 500_000 }];
+  const incoming = candidate();
+  incoming.reference = { ...incoming.reference, sectors: [{ durationUs: 500_000, curve }, incoming.reference.sectors[1]] };
+  const update = updateRecords(book(), incoming);
+  curve[1].elapsedUs = 1;
+  assert.equal(update.records.best!.sectors[0].curve[1].elapsedUs, 500_000);
+  assert.equal(update.records.opt!.sectors[0].curve[1].elapsedUs, 500_000);
 });
 
 test('incompatible sector boundaries cannot be compared to the active definition', () => {
@@ -145,6 +162,56 @@ test('storage reads being unavailable do not prevent in-memory improvements', ()
   assert.equal(repository.load(combination, definition).best!.totalUs, 1_000_000);
 });
 
+test('an incompatible definition cannot replace an already loaded layout definition', () => {
+  const repository = createRecordRepository(new MemoryStorage());
+  repository.consider(candidate(), definition);
+  assert.throws(() => repository.load(combination, { ...definition, boundaries: [0, 0.25, 1] }), RangeError);
+  assert.equal(repository.load(combination, definition).best!.totalUs, 1_000_000);
+});
+
+test('one layout retains the same sector definition across different car models', () => {
+  const repository = createRecordRepository(new MemoryStorage());
+  repository.load(combination, definition);
+  assert.throws(() => repository.load({ ...combination, modelId: 21 }, { ...definition, boundaries: [0, 0.25, 1] }), RangeError);
+});
+
+test('a shallow-frozen retained Best cannot alias mutable curves in a new Opt improvement', () => {
+  const previous = book([500_000, 500_000]);
+  Object.freeze(previous.best);
+  const update = updateRecords(previous, candidate([450_000, 650_000]));
+  const mutablePoint = previous.best!.sectors[0].curve[1];
+  try { mutablePoint.elapsedUs = 1; } catch (error) { assert.ok(error instanceof TypeError); }
+  assert.equal(update.records.best!.sectors[0].curve[1].elapsedUs, 50_000);
+});
+
+test('recovered complete Best and independently faster Opt merge without inventing a Best', () => {
+  const local = updateRecords(book([500_000, 500_000]), candidate([400_000, 700_000])).records;
+  const recovered = book([450_000, 450_000]);
+  const merged = mergeRecordBooks(recovered, local);
+  assert.equal(merged.best!.totalUs, 900_000);
+  assert.deepEqual(merged.opt!.sectors.map(sector => sector.durationUs), [400_000, 450_000]);
+  assert.equal(merged.opt!.totalUs, 850_000);
+  assert.deepEqual(recovered.best, lap([450_000, 450_000]));
+});
+
+test('denied initial reads hold writes until recovered references can be merged', () => {
+  const storage = new MemoryStorage();
+  const original = createRecordRepository(storage);
+  original.consider(candidate([400_000, 400_000]), definition);
+  const saved = storage.values.get('r3e-sectors:v1:records:10:20');
+  const repository = createRecordRepository(storage);
+  storage.failReads = true;
+  repository.consider(candidate(), definition);
+  assert.equal(repository.isDirty(combination), true);
+  assert.equal(storage.values.get('r3e-sectors:v1:records:10:20'), saved);
+  assert.equal(repository.flush(combination), false);
+  storage.failReads = false;
+  assert.equal(repository.flush(combination), true);
+  assert.equal(repository.load(combination, definition).best!.totalUs, 800_000);
+  assert.equal(JSON.parse(storage.values.get('r3e-sectors:v1:records:10:20')!).best.totalUs, 800_000);
+  assert.equal(repository.isDirty(combination), false);
+});
+
 for (const [name, serialized] of [
   ['invalid JSON', '{broken'],
   ['unknown version', JSON.stringify({ ...book([500_000, 500_000]), schemaVersion: 2 })],
@@ -152,6 +219,9 @@ for (const [name, serialized] of [
   ['wrong boundaries', JSON.stringify({ ...book([500_000, 500_000]), boundaries: [0, 0.2, 1] })],
   ['unvalidated shape', JSON.stringify({ schemaVersion: 1, ...combination, best: 'fast' })],
   ['inconsistent totals', JSON.stringify({ ...book(), best: { ...lap(), totalUs: 3 }, opt: lap() })],
+  ['Opt without Best', JSON.stringify({ ...book(), opt: lap() })],
+  ['Opt sector slower than Best', JSON.stringify({ ...book([500_000, 500_000]), opt: lap([600_000, 300_000]) })],
+  ['Opt total slower than Best', JSON.stringify({ ...book([500_000, 500_000]), opt: lap([600_000, 600_000]) })],
 ]) {
   test(`${name} storage is ignored without overwriting it during load`, () => {
     const storage = new MemoryStorage();

@@ -205,3 +205,77 @@ test('an initialization failure releases earlier modules and their subscriptions
   // be no live connection after the failed construction.
   assert.equal(bridge.disconnections, bridge.connections);
 });
+
+test('module storage remains isolated when IDs and local keys contain delimiters', () => {
+  const contexts: ModuleContext[] = [];
+  const modules = ['one', 'one:two'].map((id): HudModule => ({
+    id,
+    create(context) {
+      contexts.push(context);
+      return { widgets: [], dispose() {} };
+    },
+  }));
+  const host = createHudHost(modules, new FakeBridge(), new MemoryStorage());
+  contexts[0].storage.setItem('two:settings', 'first');
+  contexts[1].storage.setItem('settings', 'second');
+  assert.equal(contexts[0].storage.getItem('two:settings'), 'first');
+  assert.equal(contexts[1].storage.getItem('settings'), 'second');
+  host.dispose();
+});
+
+test('one failed disposer cannot leak other modules or the telemetry connection', () => {
+  const bridge = new FakeBridge();
+  const failure = new Error('first module cleanup failed');
+  const disposed: string[] = [];
+  let received = 0;
+  const modules = ['one', 'two'].map((id): HudModule => ({
+    id,
+    create(context) {
+      context.subscribe(() => { received += 1; });
+      return {
+        widgets: [],
+        dispose() {
+          disposed.push(id);
+          if (id === 'one') throw failure;
+        },
+      };
+    },
+  }));
+  const host = createHudHost(modules, bridge, new MemoryStorage());
+  assert.throws(() => host.dispose(), error => error instanceof AggregateError && error.errors.includes(failure));
+  assert.deepEqual(disposed.sort(), ['one', 'two']);
+  assert.equal(bridge.disconnections, 1);
+  bridge.emit(frame());
+  assert.equal(received, 0);
+  assert.doesNotThrow(() => host.dispose());
+});
+
+test('failed initialization preserves its cause even when rollback disposal also fails', () => {
+  const bridge = new FakeBridge();
+  const failure = new Error('original initialization error');
+  const ready: HudModule = {
+    id: 'ready',
+    create(context) {
+      context.subscribe(() => assert.fail('rolled-back listener fired'));
+      return { widgets: [], dispose() { throw new Error('rollback error'); } };
+    },
+  };
+  const broken: HudModule = { id: 'broken', create() { throw failure; } };
+  assert.throws(() => createHudHost([ready, broken], bridge, new MemoryStorage()), error => error === failure);
+  bridge.emit(frame());
+  assert.equal(bridge.listeners.size, 0);
+  assert.equal(bridge.connections, bridge.disconnections);
+});
+
+test('duplicate descriptor rejection disposes every already-created module', () => {
+  const disposed: string[] = [];
+  const modules = ['one', 'two'].map((id): HudModule => ({
+    id,
+    create: () => ({
+      widgets: [widget('same-widget')],
+      dispose() { disposed.push(id); },
+    }),
+  }));
+  assert.throws(() => createHudHost(modules, new FakeBridge(), new MemoryStorage()), /duplicate/i);
+  assert.deepEqual(disposed.sort(), ['one', 'two']);
+});
