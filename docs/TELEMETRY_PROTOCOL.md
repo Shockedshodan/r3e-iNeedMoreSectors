@@ -1,12 +1,12 @@
 # RaceRoom bridge adapter and live-writing gate
 
-Capture, replay and analysis are implemented. Use [LIVE_TESTING.md](LIVE_TESTING.md) for exact Windows commands and acceptance scenarios, and [LIVE_VALIDATION_PLAN.md](LIVE_VALIDATION_PLAN.md) for the remaining evidence-driven reconciliation and live enablement work.
+Capture, replay and analysis are implemented. Use [LIVE_TESTING.md](LIVE_TESTING.md) for exact Windows commands, acceptance scenarios and the evidence required before enabling live saving.
 
 The application uses one polling WebSocket connection to the SealHUD-compatible `/r3e` bridge. Its default is `ws://localhost:8070/r3e`; it sends empty strings at a configurable 16 ms polling interval. Connection errors and closes reset the adapter and reconnect. Disposal cancels polling/reconnect timers and closes the socket. No unrelated CrewChief audio, CSS-reload socket, analytics, clipboard telemetry or debug-snapshot storage is started.
 
 ## Supported input
 
-Compatibility is field-based across the normal HUD, browser bridge and replay: usable identity and player timing fields determine intake, not an exact API version or version allowlist. Observed API **2.8** packets and synthetic alternate-minor packets use the same adapter path. Capture and analysis preserve received version metadata without a version gate. No manual version approval or compatibility override is needed, and no upgrade to API 3.6 is required for compatible input. Missing or malformed required fields and unsupported sessions retain specific errors. Collection remains scoped to practice (`SessionType=0`), player control (`ControlType=0`). Raw field names follow the pinned API and SealHUD references in [PROJECT_BASELINE.md](PROJECT_BASELINE.md).
+Compatibility is field-based across the normal HUD, browser bridge and replay: usable identity and player timing fields determine intake, not an exact API version or version allowlist. Observed API **2.8** packets and synthetic alternate-minor packets use the same adapter path. Capture and analysis preserve received version metadata without a version gate. No manual version approval or compatibility override is needed, and no upgrade to API 3.6 is required for compatible input. Missing or malformed required fields and unsupported sessions retain specific errors. Collection remains scoped to practice (`SessionType=0`), player control (`ControlType=0`). Raw field names follow the pinned API and SealHUD references in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 
 Live record saving remains disabled pending separate real-telemetry validation; admitting compatible telemetry does not authorize record writes.
 

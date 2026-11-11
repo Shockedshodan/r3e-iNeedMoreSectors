@@ -1,4 +1,4 @@
-/** Timing and module contracts. Units and normalization are in docs/TDD_PLAN.md. */
+/** Timing and module contracts. Units and normalization are in docs/TELEMETRY_PROTOCOL.md. */
 export interface Combination {
   layoutId: number;
   modelId: number;

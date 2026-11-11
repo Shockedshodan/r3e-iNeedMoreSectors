@@ -7,14 +7,21 @@ playwright-report/
 captures/
 reports/
 
-# Alloy keeps local run state and toolchains; only its configuration is source.
-.alloy/*
-!.alloy/recipes/
-!.alloy/project.md
-!.alloy/worktree-setup
+# Local AI, agent and task-tracking tools (including recipes and databases).
+.agents/
+.alloy/
+.beads/
+.claude/
+.codex/
+.cursor/
+AGENTS.md
+CLAUDE.md
 
-# Passive Beads export; the local Dolt database is authoritative.
-.beads/issues.jsonl
+# Keep only the operating guides in the source distribution.
+docs/*
+!docs/RUNNING.md
+!docs/LIVE_TESTING.md
+!docs/TELEMETRY_PROTOCOL.md
 
 # Beads / Dolt files (added by bd init)
 .dolt/

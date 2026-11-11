@@ -1,13 +1,10 @@
 I am pissed by lack of opt lap and sectors
 
-Development starts with the [project baseline](docs/PROJECT_BASELINE.md) and
-[TDD plan](docs/TDD_PLAN.md). With Node 24, run `npm ci`,
-`npm run typecheck`, and `npm test`.
+With Node 24, run `npm ci`, `npm run typecheck`, and `npm test`.
 
 The rendered HUD, SealHUD-derived layout controls, configurable hotkey,
 build-time module discovery and RaceRoom bridge adapter are implemented.
-See [running instructions](docs/RUNNING.md) and [implementation progress](docs/IMPLEMENTATION_PROGRESS.md).
-New agents should start with the [current handover](docs/NEXT_AGENT_HANDOVER.md).
+See the [running instructions](docs/RUNNING.md) for setup and usage.
 
 Use `npm start` for development, `npm run serve` for the production-mode server,
 and `npm run demo:bridge` for synthetic practice telemetry. Run `npm test`,
@@ -46,13 +43,7 @@ My water greedy llm agents shamelessly appropriated code from a repositories bel
   coverage; live validation remains outstanding. This API does not provide the
   WebSocket bridge expected by SealHUD.
 
-The [project baseline](docs/PROJECT_BASELINE.md) records these sources, inspected
-revisions, and the original architecture handoff; the
-[test-first plan](docs/TDD_PLAN.md) explains how they informed the contracts.
-The baseline also records SealHUD's MIT `LICENSE`/README versus ISC
-`package.json` metadata discrepancy. Preserve upstream attribution and license
-notices when reusing source, and resolve that discrepancy before redistribution.
-
-For development tooling, [Beads (`gastownhall/beads`)](https://github.com/gastownhall/beads)
-provides the issue tracker and repository agent-workflow guidance recorded in
-[AGENTS.md](AGENTS.md).
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
+[LICENSES/SealHUD-MIT.txt](LICENSES/SealHUD-MIT.txt) for preserved upstream
+attribution and license notices, including SealHUD's MIT LICENSE/README versus
+ISC package metadata discrepancy.

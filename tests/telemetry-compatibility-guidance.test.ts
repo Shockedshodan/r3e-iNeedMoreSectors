@@ -9,7 +9,7 @@ function plain(markdown: string): string {
 // These are operator-facing contracts, like the runbook checks in
 // lap-summary-outputs.test.ts. Historical paragraphs may retain old decisions;
 // an unqualified setup instruction must not send a compatible user to upgrade.
-for (const name of ['RUNNING.md', 'LIVE_TESTING.md', 'TELEMETRY_PROTOCOL.md', 'NEXT_AGENT_HANDOVER.md']) {
+for (const name of ['RUNNING.md', 'LIVE_TESTING.md', 'TELEMETRY_PROTOCOL.md']) {
   test(`${name} explains field-based telemetry intake without requiring API 3.6 or manual version approval`, async () => {
     const markdown = await readFile(new URL(`../docs/${name}`, import.meta.url), 'utf8');
     const paragraphs = markdown.split(/\r?\n\s*\r?\n/).map(plain);
@@ -40,13 +40,10 @@ for (const name of ['RUNNING.md', 'LIVE_TESTING.md', 'TELEMETRY_PROTOCOL.md', 'N
   });
 }
 
-test('the live-validation plan marks its API 3.6-first intake decision historical while preserving its provenance', async () => {
-  const markdown = await readFile(new URL('../docs/LIVE_VALIDATION_PLAN.md', import.meta.url), 'utf8');
-  const paragraphs = markdown.split(/\r?\n\s*\r?\n/).map(plain);
-  const originalDecision = paragraphs.find(paragraph => /start with[^\n]*API 3\.6/i.test(paragraph));
-  assert.ok(originalDecision, 'Retain the original API 3.6-first plan decision as historical evidence');
-  assert.match(originalDecision, /historical|superseded/i,
-    'Mark the old version-first decision where readers encounter it');
-  assert.match(plain(markdown), /field[ -]based|compatib\w*[^.]{0,180}(?:required|used|consumed|usable) fields/i,
-    'Point readers to the current field-based intake policy');
+test('the telemetry protocol describes shared field-based intake across HUD, bridge and replay', async () => {
+  const markdown = await readFile(new URL('../docs/TELEMETRY_PROTOCOL.md', import.meta.url), 'utf8');
+  const current = plain(markdown);
+  assert.match(current, /field-based across the normal HUD, browser bridge and replay/i);
+  assert.match(current, /not an exact API version or version allowlist/i);
+  assert.match(current, /Missing or malformed required fields and unsupported sessions retain specific errors/i);
 });
