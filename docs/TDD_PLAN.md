@@ -15,9 +15,9 @@ This conclusion applies to the pinned source inspected here. It is not a claim a
 
 Use the requirements in [PROJECT_BASELINE.md](PROJECT_BASELINE.md). First specify pure timing behavior, then connect it through the module host, then implement rendering and the real bridge adapter. Keep engine tests independent of SealHUD imports, which start network connections and unrelated services.
 
-The initial TDD commit established the RED phase with typed, throwing placeholders. The timing core and headless integration now implement those contracts; see [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) for the current green milestone. React rendering, build discovery and the native bridge adapter remain later steps. Tests remain executable specifications, not skipped tests or a passing mock application.
+The initial TDD commit established the RED phase with typed, throwing placeholders. The timing core, rendered React HUD, build discovery and gated native-field bridge adapter now implement the subsequent milestones; see [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md). Live acceptance remains separate. Tests remain executable specifications, not skipped tests or a passing mock application.
 
-Use Node 24's built-in test runner and TypeScript stripping. The test runner adds no dependency; the only development dependencies are pinned TypeScript and Node types. Test times and telemetry are supplied explicitly, so there are no sleeps, network calls, RaceRoom installations, or system-clock dependencies in these specifications. Storage and bridge fakes expose observable effects; expected timing values are hand-calculated rather than derived by a second timing algorithm.
+Use Node 24's built-in test runner through `tsx` for TypeScript and JSX. Pure tests still use explicitly supplied times, storage and transport fakes. React Testing Library/JSDOM exercise components, actual Webpack builds exercise discovery, and Playwright tests use a real local raw-JSON WebSocket fixture. The browser fixture paces observations to test the real pipeline; pure timing tests require neither wall-clock sleeps nor a RaceRoom installation. Expected timing values are hand-calculated rather than derived by a second timing algorithm.
 
 From the application checkout:
 
@@ -27,7 +27,7 @@ npm run typecheck
 npm test
 ```
 
-For local iterations, `npm run test:watch` watches the suite. Target a single file with `node --test tests/curves.test.ts` or a behavior with `node --test --test-name-pattern='snapshot' tests/timing-engine.test.ts`. The initial RED run intentionally exited nonzero; the current headless suite passes. New behavior still starts with a failing test. Never mask that exit code, mark tests as expected failures, loosen assertions merely to turn the report green, or turn an empty run into a success claim.
+For local iterations, `npm run test:watch` watches the suite. Target a single file with `npx tsx --test tests/curves.test.ts` or a behavior with `npx tsx --test --test-name-pattern='snapshot' tests/timing-engine.test.ts`. The initial RED run intentionally exited nonzero; the current suite passes. New behavior still starts with a failing test. Never mask that exit code, mark tests as expected failures, loosen assertions merely to turn the report green, or turn an empty run into a success claim.
 
 ## Initial executable specifications
 
@@ -41,7 +41,7 @@ For local iterations, `npm run test:watch` watches the suite. Target a single fi
 | `tests/module-host.test.ts` | One transport, module descriptors/actions, hidden collection, namespaced storage, cleanup, duplicate IDs and failed initialization |
 | `tests/timing-feature.test.ts` | Headless host → timing feature → records integration; collection in every mode and while both widgets are disabled, restart recovery |
 
-The last two layers specify headless behavior. They do not prove React rendering, Webpack discovery, dragging/scaling gestures, real WebSocket compatibility, or embedded-browser behavior.
+Those original layers specify headless behavior. New `tests/ui/*`, `tests/browser/*`, application/layout-registry tests, telemetry tests and actual Webpack discovery tests cover rendered behavior and the local raw-WebSocket pipeline. They do not establish in-game embedded-browser compatibility or live finish ordering.
 
 ## Proposed test contracts and decisions
 
@@ -49,14 +49,14 @@ These are implementation proposals made for deterministic tests, separately from
 
 ### Timing and records
 
-- Normalized authoritative durations use integer microseconds. Interpolated intermediate values may be fractional microseconds. The future bridge adapter must define float32-seconds quantization before exact sum checks; these tests do not validate that normalization.
+- Normalized authoritative durations use integer microseconds. Interpolated intermediate values may be fractional microseconds. The adapter rounds seconds to microseconds before checking cumulative native clocks and official totals; raw-field and end-to-end fixture tests cover that normalization, while actual game rounding remains a live validation concern.
 - A sector curve uses local fractions `0..1` and elapsed time starting at zero. Custom lap distance uses the stored boundary array. Samples must cover endpoints, have strictly increasing distance, finite values and nondecreasing time. Resampling is linear between measured points, not an assumption of constant speed.
 - The 128-interval grid is the handoff's provisional choice: 129 points per sector, subject to live accuracy checks. Curves must never be extrapolated outside `0..1`; unavailable/out-of-range comparison inputs yield no delta.
 - Complete Best replacement and independent Opt sector replacement include the matching curves. Equal times preserve existing references. Non-record and invalid captures generate no writes. Old references are immutable, including an active lap's comparison snapshot.
 - `updateRecords` treats a combination/boundary mismatch as caller misuse (`RangeError`); invalid/partial/malformed candidate laps produce no improvement. Invalid lengths/curve definitions also raise `RangeError`.
 - Root-storage record keys are `r3e-sectors:v1:records:<layoutId>:<modelId>`. The v1 envelope contains only version, layout/model identity, boundary compatibility information, and the two active references. It contains no livery ID, non-record laps, or previous versions. Layout-definition metadata and UI preferences remain separate. Host-provided module storage adds isolation; its prefix spelling is deliberately unspecified.
 - Unknown/corrupt/incompatible saved records are ignored without rewriting them on read. An actual improvement may replace the entry. Storage failures keep the latest improvement in memory and mark it dirty for retry.
-- A denied storage read does not mean an empty record database. Writes wait until reads recover; recovered complete Best and independent Opt sectors merge before saving. Engine recovery synchronization updates available records without changing the active lap's comparison snapshot or capture. Layout boundaries are frozen across models within the repository lifetime; persisting the layout-definition registry across application starts is still integration work.
+- A denied storage read does not mean an empty record database. Writes wait until reads recover; recovered complete Best and independent Opt sectors merge before saving. Engine recovery synchronization updates available records without changing the active lap's comparison snapshot or capture. A separate persisted layout-definition registry now freezes boundaries across models and application starts; unreadable definitions defer initialization. Application-lifetime repositories retain unsaved references across layout changes.
 
 ### Capture and finish association
 
@@ -72,10 +72,10 @@ These are implementation proposals made for deterministic tests, separately from
 
 - Fresh selection starts Off. Persist mode and configurable physical `KeyboardEvent.code` plus exact modifiers at `r3e-sectors:v1:preferences:timing` as `{mode,binding}`. The tests configure their own binding and do not prescribe a driving-safe default key.
 - Off → Opt → Best → Off controls both widgets; it does not control collection. No selected saved reference means no comparison, rather than silently switching to the other type.
-- Ignore repeated keys and input, textarea, select and contenteditable targets. Placement locking does not block the reference action. A future DOM adapter must forward the actual target/editability state correctly.
+- Ignore repeated keys and input, textarea, select and contenteditable targets. Placement locking does not block the reference action. The DOM adapter forwards the actual target/editability state and has component/browser coverage.
 - The headless view model supports independent visibility and editing previews. Tests do not prescribe pixel styling or mock sample times as real deltas.
 - Modules register descriptors and actions through the host. The timing module uses `timing.cycleReference`. The host owns one telemetry connection and isolated module storage, removes subscriptions on disposal, and rolls back partial initialization. Runtime registration tests precede a separate Webpack discovery test; they do not prove build-time discovery already exists.
-- The controller currently defaults to Alt+T and allows rebinding through its API. This is provisional; neither browser event wiring nor hotkey delivery while driving is implemented by the headless feature. The engine improvement callback passes the actual complete `LapCandidate` alongside its merged update, so persistence never mistakes a stitched Opt for a complete Best lap.
+- The controller defaults to Alt+T, with DOM key forwarding and rebinding through Settings. Browser tests verify text-entry/repeat suppression, locked cycling and reload persistence; delivery while driving remains a live check. The engine improvement callback passes the actual complete `LapCandidate` alongside its merged update, so persistence never mistakes a stitched Opt for a complete Best lap.
 
 ## Implementation sequence: red → green → refactor
 
@@ -89,7 +89,7 @@ For each slice, inspect a failing behavior, implement the minimum real behavior,
 6. **Browser integration.** Before the real UI integration, add a project-local Playwright harness and a local deterministic WebSocket bridge. Test rendered sector values and continuous saved-reference delta, drag/scale/edit/lock behavior, rebinding, reload persistence, connection interruption, and adding/removing a module. Reuse deterministic fixtures; verify requests/messages and visible output, not just an open port. These are future RED tests, not checks claimed as already written or run.
 7. **Real bridge and live acceptance.** Capture consented practice-mode telemetry on Windows, document actual native field order and units, and write replayable adapter regressions **before enabling writes**. Verify unchanged consecutive previous times, invalidity timing, reconnections, finish timeout/continuity limits, embedded-browser WebSocket access, persistence, hotkey delivery while driving and delta accuracy. Keep record writes disabled until association and validity are demonstrated; a synthetic normalized association is not evidence that the bridge can produce one safely.
 
-The initial suite is now green. `.github/workflows/test.yml` runs `npm ci`, type checking and the entire suite on pushes and pull requests. Add production-build and browser jobs when those workflows exist. New RED tests must remain visible until their behavior is implemented; do not exclude them to keep CI green.
+The suite is green. `.github/workflows/test.yml` runs `npm ci`, type checking, the complete unit/component suite, the production build, browser installation and Playwright on pushes and pull requests. Remote CI results are not assumed from local success. New RED tests must remain visible until their behavior is implemented; do not exclude them to keep CI green.
 
 ## Current verification
 

@@ -2,7 +2,7 @@
 
 Validated on 2026-11-11. Read `PROJECT_BASELINE.md` for the user-supplied requirements and architecture handoff.
 
-This report describes the initial onboarding validation. Subsequent TDD work added the application-local test harness and has now implemented the timing core and headless integration; see [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md). Reproduce the green suite from the application checkout with `npm ci`, then `npm run typecheck` and `npm test`. The original RED checkpoint remains in [TDD_RESULTS.md](TDD_RESULTS.md). The older proposed environment configuration file does not yet include application-local test setup, and its platform save remains unconfirmed.
+This report describes the initial onboarding validation. Subsequent TDD work implemented the timing core, rendered HUD and bridge adapter; use [RUNNING.md](RUNNING.md) for current application installation, startup and browser testing, and [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) for results. The original RED checkpoint remains in [TDD_RESULTS.md](TDD_RESULTS.md). The older proposed environment configuration file does not include the current application setup, and its platform save remains unconfirmed. This historical report does not establish publication of the current app environment.
 
 ## Prepared workflow
 

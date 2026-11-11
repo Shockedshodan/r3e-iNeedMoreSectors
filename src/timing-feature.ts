@@ -15,6 +15,7 @@ export function createTimingFeature(options: TimingFeatureOptions): TimingFeatur
   let engine: TimingEngine | null = null;
   let identity: string | null = null;
   let latestFrame: Pick<TimingFrame, 'lapElapsedUs' | 'distanceFraction'> | null = null;
+  let editing = false;
   const enabled = { panel: true, delta: true };
   let widgets: WidgetSpec[] = [];
   const combinations = new Map<string, Combination>();
@@ -82,9 +83,22 @@ export function createTimingFeature(options: TimingFeatureOptions): TimingFeatur
 
   return {
     id: 'timing',
+    binding() {
+      return controller?.binding() ?? { code: 'KeyT', altKey: true, ctrlKey: false, shiftKey: false, metaKey: false };
+    },
+    setBinding(binding) {
+      if (!active || !controller) return;
+      controller.setBinding(binding);
+    },
+    handleKey(input, layoutLocked) {
+      return active && controller !== null ? controller.handleKey(input, layoutLocked) : false;
+    },
+    setEditing(value) {
+      editing = value;
+    },
     create(context) {
       if (active) throw new Error('Timing module is already active');
-      repository = createRecordRepository(context.storage);
+      repository = options.repository ?? createRecordRepository(context.storage);
       controller = createReferenceController(context.storage);
       engine = null;
       identity = null;
@@ -93,11 +107,11 @@ export function createTimingFeature(options: TimingFeatureOptions): TimingFeatur
       widgets = [
         {
           id: 'timing.sectors', component: () => null,
-          defaults: { x: 0, y: -200, scale: 1, enabled: enabled.panel },
+          defaults: { x: -175, y: 100, scale: 1, enabled: enabled.panel },
         },
         {
           id: 'timing.delta', component: () => null,
-          defaults: { x: 0, y: -150, scale: 1, enabled: enabled.delta },
+          defaults: { x: 175, y: 100, scale: 1, enabled: enabled.delta },
         },
       ];
       active = true;
@@ -141,7 +155,7 @@ export function createTimingFeature(options: TimingFeatureOptions): TimingFeatur
         lapElapsedUs: latestFrame?.lapElapsedUs ?? -1,
         distanceFraction: latestFrame?.distanceFraction ?? -1,
         panelEnabled: enabled.panel, deltaEnabled: enabled.delta,
-        editing: false,
+        editing,
       });
     },
     records() {

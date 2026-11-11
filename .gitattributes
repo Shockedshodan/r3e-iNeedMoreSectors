@@ -1,0 +1,2 @@
+# Preserve the upstream license byte-for-byte, including its CRLF line endings.
+LICENSES/SealHUD-MIT.txt -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

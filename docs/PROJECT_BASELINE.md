@@ -6,7 +6,7 @@ This is the working baseline selected by the user on 2026-11-11. Read it before 
 
 The handoff below was supplied by the user as the final-message content of https://chatgpt.com/s/cx_6af47e935f548191ac4f2762bde2387c. The uploaded text is the source used here; the shared-chat URL itself could not be retrieved. Preserve the distinction in the handoff between user requirements and recommended implementation choices. New decisions should be recorded separately, rather than silently changing this baseline.
 
-This baseline originated during environment onboarding. The user subsequently requested a test-first implementation approach; see [TDD_PLAN.md](TDD_PLAN.md) for the contracts and [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) for the green timing core and headless integration. The rendered timer and native adapter have not been implemented or validated in RaceRoom.
+This baseline originated during environment onboarding. The user subsequently requested a test-first implementation approach; see [TDD_PLAN.md](TDD_PLAN.md) for the contracts and [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) for the timing core, rendered HUD and gated bridge adapter. The implementation has browser/fixture validation; live RaceRoom acceptance remains outstanding.
 
 ## Reference sources
 

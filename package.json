@@ -3,14 +3,43 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24 <25" },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
-    "test": "node --test --test-reporter=spec \"tests/*.test.ts\"",
-    "test:watch": "node --test --watch --test-reporter=spec \"tests/*.test.ts\"",
-    "typecheck": "tsc --noEmit"
+    "test": "tsx --test --test-reporter=spec \"tests/*.test.ts\" \"tests/ui/*.test.tsx\"",
+    "test:watch": "tsx --test --watch --test-reporter=spec \"tests/*.test.ts\" \"tests/ui/*.test.tsx\"",
+    "typecheck": "tsc --noEmit",
+    "build": "webpack --mode production",
+    "start": "webpack serve --mode development",
+    "serve": "webpack serve --mode production --no-client --no-hot --no-live-reload",
+    "demo:bridge": "tsx scripts/demo-bridge.ts",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "core-js": "3.46.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.0",
+    "@types/jsdom": "21.1.7",
     "@types/node": "24.10.0",
-    "typescript": "5.9.3"
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@types/ws": "8.18.1",
+    "css-loader": "7.1.2",
+    "html-webpack-plugin": "5.6.4",
+    "jsdom": "26.1.0",
+    "style-loader": "4.0.0",
+    "ts-loader": "9.5.4",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "webpack": "5.106.1",
+    "webpack-cli": "6.0.1",
+    "webpack-dev-server": "5.2.2",
+    "ws": "8.18.3"
   }
 }

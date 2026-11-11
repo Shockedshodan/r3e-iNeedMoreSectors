@@ -166,12 +166,18 @@ export interface HudHost {
 
 export interface TimingFeatureOptions {
   definition: SectorDefinition;
+  /** Shared application-lifetime records preserve unsaved references across layout changes. */
+  repository?: RecordRepository;
   maxFrameGapMs: number;
   maxDistanceStep: number;
   finishTimeoutMs: number;
 }
 export interface TimingFeature extends HudModule {
   mode(): ReferenceMode;
+  binding(): KeyBinding;
+  setBinding(binding: KeyBinding): void;
+  handleKey(event: KeyInput, layoutLocked: boolean): boolean;
+  setEditing(editing: boolean): void;
   view(): TimingView;
   records(): RecordBook | null;
   setWidgetEnabled(widget: 'panel' | 'delta', enabled: boolean): void;

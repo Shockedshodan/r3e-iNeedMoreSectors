@@ -1,0 +1,110 @@
+/*
+ * Timing presentation adapted from SealHUD's progress.scss, commit
+ * d38cdc53c5ac5b6781ebe7cdd6abb012e16bc79b.
+ * Copyright (c) 2026 Diego Junges and contributors. MIT License.
+ * See the upstream notice in THIRD_PARTY_NOTICES.md.
+ */
+.timing-widget {
+  box-sizing: border-box;
+  width: 300px;
+  overflow: hidden;
+  color: #f4f6f9;
+  background: rgba(12, 17, 24, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  font-family: "Arial Narrow", "Roboto Condensed", Arial, sans-serif;
+  text-shadow: 1px 1px 2px #000;
+}
+
+.timing-widget * { box-sizing: border-box; }
+.timing-widget-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.timing-widget-heading h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.timing-widget-preview {
+  color: #ffdc8e;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.timing-widget-empty {
+  padding: 12px;
+  color: #b3c0ce;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.timing-sector-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.timing-sector-table th,
+.timing-sector-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.timing-sector-table th {
+  text-align: left;
+  color: #aeb9c8;
+  font-size: 12px;
+  font-weight: 500;
+}
+.timing-sector-table td,
+.timing-delta-value {
+  font-family: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.timing-sector-table td { text-align: right; }
+.timing-sector-table tbody tr[aria-current="step"] {
+  background: rgba(93, 163, 255, 0.12);
+  box-shadow: inset 3px 0 #81b8ff;
+}
+.timing-sector-table tbody tr[aria-current="step"] th { color: #c9e1ff; }
+.timing-sector-table tfoot th,
+.timing-sector-table tfoot td {
+  border-bottom: 0;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.035);
+}
+.timing-delta-value {
+  padding: 12px 12px 8px;
+  text-align: center;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+}
+.timing-delta[data-direction="faster"] .timing-delta-value { color: #1bd84a; }
+.timing-delta[data-direction="slower"] .timing-delta-value { color: #ffb554; }
+.timing-delta[data-direction="equal"] .timing-delta-value { color: #f4f6f9; }
+.timing-delta[data-direction="unavailable"] .timing-delta-value { color: #aeb9c8; }
+.timing-delta-track {
+  position: relative;
+  height: 7px;
+  margin: 0 12px 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+.timing-delta-track::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 50%;
+  border-left: 1px solid rgba(255, 255, 255, 0.7);
+}
+.timing-delta-fill { position: absolute; height: 100%; }
+.timing-delta[data-direction="faster"] .timing-delta-fill { background: #1bd84a; }
+.timing-delta[data-direction="slower"] .timing-delta-fill { background: #ffb554; }
+.timing-delta .timing-widget-empty { padding-top: 0; text-align: center; }

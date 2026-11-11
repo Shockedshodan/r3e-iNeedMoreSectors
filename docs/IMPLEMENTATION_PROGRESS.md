@@ -1,4 +1,34 @@
-# First green milestone: timing core and headless integration
+# Implementation progress
+
+## Rendered HUD, controls, discovery and adapter — current milestone
+
+The six implementation items requested after the timing-core commit are now present:
+
+1. **Rendered widgets:** selected saved Best/Opt sector tables and continuous signed delta, explicit missing-reference states, and honest editing previews.
+2. **SealHUD-derived layout controls:** drag, wheel scaling, fine/coarse increments, editing, locking, independently hidden widgets, three persisted profiles and frozen layout definitions across application starts.
+3. **Keyboard/settings integration:** DOM forwarding, persisted rebinding, repeat/text-entry suppression and reference cycling while placement is locked.
+4. **Build discovery:** new `modules/**/module.ts` factories register widgets/actions after rebuilding. Tests add a folder and build again without changing the host/render registry.
+5. **Browser integration:** actual raw-JSON WebSocket fixtures drive the adapter, engine and React UI, including record collection while Off, saved delta, reconnect interruption, profiles, visibility, reload, demo isolation and selected missing-API polyfills. Disconnecting clears the displayed delta while retaining saved references; fresh telemetry is required before resuming comparison.
+6. **Native-field adapter implementation:** RaceRoom API 3.6/practice/player normalization, unit conversion, native cumulative sectors, validity latching, conservative delayed-finish association, polling/reconnect and cleanup. **Real field ordering and measured operating thresholds remain live-validation prerequisites; the ordinary live path cannot authorize record writes.**
+
+Focused SealHUD code/behavior and styling were adapted from the pinned reference. The complete upstream MIT notice is retained in source and emitted with the production build. No unrelated startup services or debug-snapshot persistence were imported.
+
+Review added failing-first regressions for selection and unsaved-reference retention during layout changes when storage writes fail, and for overlapping default widgets. The shared application-lifetime repository and in-memory preferences now survive feature recreation. Existing saved positions are preserved.
+
+Latest validation on 2026-11-11:
+
+| Check | Result |
+| --- | --- |
+| `npm test` | 235 unit/component/build tests passed; no skipped, cancelled or TODO tests |
+| `npm run test:browser` | 11 Chromium tests passed |
+| `npm run typecheck` | Passed |
+| `npm run build` | Passed; 3 standard Webpack bundle-size/performance warnings |
+| Production-mode server smoke | Bootstrap, settings and rebinding passed with no page errors |
+| Standalone synthetic bridge smoke | Six custom sectors, saved references and continuous delta verified in the production-mode browser |
+
+CI configuration now runs the unit/component suite, production build and browser suite. A remote CI run has not been claimed or verified. Tests and screenshots are retained under ignored `.test-results/`; see [RUNNING.md](RUNNING.md) for reproduction and [TELEMETRY_PROTOCOL.md](TELEMETRY_PROTOCOL.md) for the live gate.
+
+## First green milestone: timing core and headless integration — historical
 
 Implemented on 2026-11-11, following the RED tests from commit `826e507` and the sequence in [TDD_PLAN.md](TDD_PLAN.md).
 
@@ -29,8 +59,6 @@ The full runner log is stored locally at `.test-results/implementation.log` (ign
 
 All original throwing feature seams have been implemented and the unused placeholder helper removed. Upstream reference repositories remain unchanged. These checks validate normalized/headless behavior, not a rendered HUD or live game telemetry.
 
-## Remaining work
+## Remaining live acceptance
 
-Next is plan step 5: add failing React and Webpack-discovery tests, then integrate the actual SealHUD configuration/placement/scaling UI and both widgets. The current widget descriptors deliberately render nothing. DOM key forwarding, rendered settings/rebinding, persistent layout-definition registry, persistent widget placement/scale and module discovery by rebuild still need that integration. The feature currently operates on one supplied layout definition and supports model/session changes within it.
-
-Then add browser tests with a deterministic WebSocket bridge, followed by the native adapter and live practice-mode acceptance. No adapter currently creates the normalized, proven finish association required by this engine. Real finish ordering/validity, continuity thresholds, embedded-browser connectivity/persistence, driving-hotkey delivery and delta accuracy remain unverified. No live record-writing path is enabled by this headless milestone.
+Capture real practice traces from the chosen Windows bridge, establish finish-field ordering/final validity and measured continuity/timeout settings, and validate the embedded browser, persistence, hotkey delivery while driving and delta accuracy. Then add regressions from that evidence and enable a validated live record-writing path. The implemented conservative association and synthetic tests do not replace that evidence. Other session modes and bridge versions remain outside the initial practice/API 3.6 scope.
