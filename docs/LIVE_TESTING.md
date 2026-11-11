@@ -2,6 +2,8 @@
 
 This runbook uses the implemented capture, replay and analysis tools. It prepares evidence for live recording; it does not enable live Best/Opt writes. The real driving portion requires RaceRoom and one chosen bridge on the Windows game PC.
 
+For normal UI setup and the comparison with SealHUD's hosted-page/local-bridge approach, start with [Running the HUD](RUNNING.md#connect-raceroom). Normal local UI uses port 3000; this evidence campaign uses the collector on port 3200. Both connect to the same kind of locally running native bridge on port 8070. GitHub Pages can serve the normal HUD, but cannot run the capture API: all capture steps below use the local collector address.
+
 ## 1. Prepare a reproducible build
 
 Use Node 24 and run these commands in the repository in PowerShell:
@@ -37,7 +39,7 @@ Before live testing, stop `demo:bridge` and the dry-run collector with Ctrl+C. P
 
 ## 3. Start a real practice capture
 
-1. Run one compatible CrewChief or dash bridge. Do not run both. Verify its exact version and API support.
+1. Run exactly one compatible CrewChief or `dash.exe` bridge. Do not run both. Verify its exact version and API support, and stop any synthetic bridge from the dry run. Port 8070 must be available to the real bridge.
 2. Start the collector:
 
    ```powershell
@@ -52,7 +54,7 @@ Before live testing, stop `demo:bridge` and the dry-run collector with Ctrl+C. P
 
    Do **not** add `demo=1` for real captures. The default telemetry endpoint is `ws://localhost:8070/r3e`. For a different bridge port, add `&ws=127.0.0.1:PORT` to the HUD page.
 
-4. Open a player-controlled practice session. Confirm the HUD reports practice telemetry and that live lap-record saving remains disabled.
+4. Open an API 3.6 player-controlled practice session. Confirm the HUD reports practice telemetry and that live lap-record saving remains disabled. On a fresh origin the reference is Off; the Reference button or Alt+T cycles modes, but no new live Best/Opt references are expected while saving is disabled. Edit layout offers placement previews. Preferences on port 3200 are separate from port 3000 and the hosted origin.
 5. Enter the exact **Game build** and **Bridge build** in the capture panel. Click **Start capture** before the driving sequence. The diagnostic tool uses the HUD's existing telemetry socket and retains messages even when the adapter rejects them.
 6. Drive the scenario. HUD reference mode may remain Off; diagnostic collection continues. Avoid opening other HUDs that poll the bridge during the measurement run.
 7. Click **Stop capture**, wait for **Saved**, and copy the displayed capture directory. Do this before exiting/reloading the HUD or stopping the collector.

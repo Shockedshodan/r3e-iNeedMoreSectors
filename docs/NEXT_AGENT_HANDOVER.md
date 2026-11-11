@@ -1,12 +1,24 @@
 # Handover for the next agent
 
-Prepared on 2026-11-11. Application implementation baseline: `2beddbf`. This handover accompanies the merge of remote `main` through `a66ce11`, preserving the user's README acknowledgements and Beads/workflow files. The local development branch was `work`; delivery target is `origin/main` in `Shockedshodan/r3e-iNeedMoreSectors`. Check the actual branch, log and remote state when resuming.
+Originally prepared on 2026-11-11 against application implementation baseline `2beddbf`, accompanying the merge of remote `main` through `a66ce11`. That delivery preserved the user's README acknowledgements and Beads/workflow files. Its branch was `work`; the repository is `Shockedshodan/r3e-iNeedMoreSectors`. Check the actual branch, log and remote state when resuming.
+
+## Current delivery tracking
+
+Beads epic **`r3e-iNeedMoreSectors-p9z` — Deliver hosted HUD and validated live RaceRoom timing** is the durable source for remaining work and dependencies. Read it with:
+
+```sh
+bd prime
+bd show r3e-iNeedMoreSectors-p9z
+bd graph r3e-iNeedMoreSectors-p9z
+```
+
+The epic groups executable Alloy tasks and explicit manual gates; it is not an executable task itself. The current delivery adds a tested Pages workflow and updates the local/hosted guides. It also tracks the remote browser-install failure caused by the `ubuntu-latest` image moving beyond the locked Playwright version's supported platforms. Public deployment activation remains a manual task, and the expected Pages URL is provisional until verified. No real captures were available when the epic was created; the Windows campaign blocks evidence-dependent changes. Do not infer commit, push, sync or scheduler authority from historical handover wording; follow the active instructions in [../AGENTS.md](../AGENTS.md).
 
 ## Current outcome
 
 The timing core, rendered HUD, SealHUD-derived controls, modular discovery, RaceRoom adapter and diagnostic capture/replay/analysis tools are implemented and tested. **Ordinary live Best/Opt record saving is still disabled.** No real RaceRoom capture campaign or in-game acceptance has been performed in this cloud environment. The next milestone is evidence collection on the Windows game machine, followed by regression-driven reconciliation fixes and measured live profiles.
 
-The latest user request was to create this handover and push the changes. Earlier requests explicitly required TDD and authorized adapting components/functionality from the pinned SealHUD source. Preserve those requirements and the upstream notices.
+The original handover delivery was requested separately. The current request is to implement the hosted-HUD setup and guides and turn remaining work into an Alloy epic. Earlier requirements for TDD and authorized reuse from the pinned SealHUD source still apply; preserve the upstream notices.
 
 ## Read first
 
@@ -17,7 +29,7 @@ The latest user request was to create this handover and push the changes. Earlie
 | [LIVE_TESTING.md](LIVE_TESTING.md) | Exact Windows operator procedure, driving scenarios, independent labels and acceptance criteria |
 | [LIVE_VALIDATION_PLAN.md](LIVE_VALIDATION_PLAN.md) | Phases 1–4 implemented; phases 5–8 require real evidence |
 | [TELEMETRY_PROTOCOL.md](TELEMETRY_PROTOCOL.md) | Adapter assumptions, supported input and live-writing gate |
-| [RUNNING.md](RUNNING.md) | Installation, UI controls, demo and module extension |
+| [RUNNING.md](RUNNING.md) | Local/hosted setup, Pages activation, UI controls, troubleshooting and module extension |
 | [TDD_PLAN.md](TDD_PLAN.md) | Test-first contracts and implementation approach |
 | [../AGENTS.md](../AGENTS.md) | Current repository workflow, including Beads |
 
@@ -74,7 +86,7 @@ The browser only opts into candidate record authorization for `demo=1`, using se
 
 ## Reproduce and verify
 
-Use Node 24, the committed lockfile and the existing checkout. In the current cloud workspace it is `/workspace/r3e-iNeedMoreSectors`; a future task may use a different path.
+Use Node 24, the committed lockfile and the existing checkout. The original `/workspace/r3e-iNeedMoreSectors` path was environment-specific; run commands from the actual repository root.
 
 ```sh
 npm ci
@@ -133,7 +145,7 @@ If reliable final association cannot be established, preserve conservative rejec
 
 ## Repository workflow and environment caveats
 
-The remote introduced Beads during this session. Read [../.agents/skills/beads/SKILL.md](../.agents/skills/beads/SKILL.md), then use `bd prime` and the issue tracker for durable work tracking when available. In this cloud environment, `bd prime` returned `/bin/bash: bd: command not found`. No issue database updates or Dolt sync were performed; tracked Beads exports are not the authoritative database and were not manually edited. This document is the handover explicitly requested by the user, not a replacement issue tracker. Git commit/push are explicitly authorized for this delivery.
+Read [../.agents/skills/beads/SKILL.md](../.agents/skills/beads/SKILL.md), then use `bd prime` and the issue tracker for durable work tracking. Beads is available in the environment where the current epic was created. The original cloud handover reported `bd: command not found` and made no issue database updates; that is historical context, not a current blocker. Issues live in the local Dolt database; the passive JSONL export is ignored and must not be edited by hand. Generated Alloy state is also ignored; project recipes remain versioned. This prevents routine tracking updates from making Alloy reject the checkout as dirty. This document supplies product context; Beads supplies task status. The operator subsequently requested local Alloy execution, including its local commit prerequisites; remote pushes, publishing and Dolt remote sync remain separate actions governed by current session authority.
 
 Upstream reference checkouts were `/workspace/references/sealhud_source` at user-pinned `d38cdc53c5ac5b6781ebe7cdd6abb012e16bc79b` and `/workspace/references/r3e-api` at inspected `e57a72fcafd74fcb1b0e7b5ca38a1a0aa59d74cb`. They are separate from application source and may need fetching in a fresh environment. Sources are linked in `PROJECT_BASELINE.md`. Preserve [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) and the complete SealHUD MIT notice emitted with production assets.
 

@@ -1,2 +1,0 @@
-#!/bin/sh
-exec /home/pes/alloy/.venv/bin/python -c 'import sys; sys.path.insert(0, '"'"'/home/pes/alloy/src'"'"'); sys.argv[0] = '"'"'alloy'"'"'; from alloy.cli import app; app()' "$@"

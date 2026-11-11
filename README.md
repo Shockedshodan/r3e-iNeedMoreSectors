@@ -20,6 +20,13 @@ Capture and replay tooling is available with `npm run capture`, `npm run replay`
 and `npm run analyze:capture`. Follow the [Windows live-testing runbook](docs/LIVE_TESTING.md)
 to collect real evidence while keeping live record saving disabled.
 
+The [local and hosted setup guide](docs/RUNNING.md#connect-raceroom) explains
+the SealHUD-style arrangement: a website plus one telemetry bridge running on
+the Windows game PC. The Pages workflow publishes successful `main` builds;
+the expected site is `https://shockedshodan.github.io/r3e-iNeedMoreSectors/`,
+pending [initial activation and deployment verification](docs/RUNNING.md#publish-the-normal-ui-with-github-pages).
+Real-data capture uses the local collector because Pages cannot provide its API.
+
 ## Acknowledgements
 
 My water greedy llm agents shamelessly appropriated code from a repositories below, and it's fair to acknowledge that it's not my intellectual property, and I piggibacking on other people effort:

@@ -20,6 +20,8 @@ npm run test:browser
 
 Browser tests use `/usr/bin/chromium` when available, an executable specified by `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`, or Playwright's installed Chromium. If none is installed, run `npx playwright install chromium` (and `npx playwright install-deps chromium` when the operating system lacks its runtime libraries). CI installs the browser and dependencies explicitly.
 
+The browser suite includes a smoke check that serves the production `dist/` under `/r3e-iNeedMoreSectors/`, matching the GitHub Pages project path. Run `npm run build` before `npm run test:browser`; to run only this check, use `npx playwright test tests/browser/pages.spec.ts` after building.
+
 ## Try synthetic practice telemetry without the game
 
 Run `npm run demo:bridge` in a second terminal. It serves raw API-shaped synthetic practice telemetry on local port 8070. Use the HUD page with query parameters `demo=1&ws=127.0.0.1:8070`. For example, on your own machine the production server can be opened at `http://127.0.0.1:3000/?demo=1&ws=127.0.0.1:8070`. This is a local development address, not a hosted cloud preview.
@@ -37,7 +39,30 @@ The demonstration accelerates lap progression while supplying plausible lap cloc
 
 ## Connect RaceRoom
 
-Run the HUD server on the game machine or host the built `dist/` website where RaceRoom can reach it. Set RaceRoom's `-webHudUrl=` launch option to that HUD page. Run one compatible CrewChief/dash bridge exposing the SealHUD protocol at `ws://localhost:8070/r3e`.
+[SealHUD's pinned setup instructions](https://github.com/sealhud/sealhud_source/blob/d38cdc53c5ac5b6781ebe7cdd6abb012e16bc79b/README.md) load the HUD from `https://sealhud.github.io/` through RaceRoom's `-webHudUrl=` option, with CrewChief or `dash.exe` running locally. This HUD follows the same arrangement: the website supplies the interface, and a bridge on the Windows game PC reads RaceRoom telemetry. Hosting the website on GitHub Pages does not move the game or its telemetry bridge to GitHub.
+
+Choose the website address for your purpose:
+
+| Purpose | Website address | What must run on the game PC |
+| --- | --- | --- |
+| Local normal UI | `http://127.0.0.1:3000/` | HUD server and one native telemetry bridge |
+| Hosted normal UI, after Pages activation | `https://shockedshodan.github.io/r3e-iNeedMoreSectors/` | One native telemetry bridge; no local website server |
+| Real-data evidence capture | `http://127.0.0.1:3200/?capture=1` | Local capture server and one native telemetry bridge |
+
+For a local normal UI, run these commands in the checkout on Windows, using Node 24 and PowerShell:
+
+```powershell
+npm ci
+npm run serve
+```
+
+Keep that terminal running. In Steam → RaceRoom → Properties → Launch Options, set:
+
+```text
+-webHudUrl=http://127.0.0.1:3000/
+```
+
+Run exactly one compatible CrewChief or `dash.exe` bridge exposing the SealHUD protocol at `ws://localhost:8070/r3e`; do not run both, and stop `npm run demo:bridge` before using real data. Record the exact bridge build for live testing. The native bridge and RaceRoom are external prerequisites, not installed by `npm ci`.
 
 The app defaults to that bridge. The `ws` query parameter accepts a `host:port` or full `ws://` / `wss://` address, without embedded credentials. A host-only address receives the `/r3e` path. Port 8070 is the native bridge port; port 3000 serves the website.
 
@@ -45,11 +70,53 @@ The current adapter supports API **3.6**, player-controlled **practice** session
 
 **Live record saving is disabled pending real telemetry validation.** The UI reports this state. Synthetic/browser tests establish implementation behavior, not raw field ordering in the game. Review [TELEMETRY_PROTOCOL.md](TELEMETRY_PROTOCOL.md) before enabling a live-writing path.
 
+On a fresh origin, reference mode starts Off. The Reference button or Alt+T cycles Off → Opt → Best → Off; Edit layout displays placement previews. Connecting to live telemetry does not create saved Best/Opt references while the live-writing gate is disabled, so an empty reference is expected. Actual key delivery and connectivity in RaceRoom's embedded browser require the separate [in-game acceptance procedure](LIVE_TESTING.md).
+
+Preferences and records use browser localStorage. HTTP versus HTTPS, different hosts (`localhost` versus `127.0.0.1`), and different ports have separate origins. Moving from port 3000 to the capture server or Pages therefore starts with separate settings and references. A desktop browser preview also does not prove what RaceRoom's embedded browser stores. Demo storage remains separate from live storage within each origin.
+
+## Publish the normal UI with GitHub Pages
+
+The **Tests and Pages** workflow runs the automated checks on pushes and pull requests. After all checks pass, a push to `main` publishes the tested production `dist/`; Actions → Tests and Pages → Run workflow can also publish when `main` is selected. Pull requests, other branches and manual runs on other refs do not publish. The deployment uses the `github-pages` environment.
+
+For initial activation, a repository administrator must select **Settings → Pages → Build and deployment → Source → GitHub Actions**. After the workflow has been published to the repository, inspect a successful `main` deployment and use its environment URL. The expected address below is **provisional until the first successful deployment**; this guide does not establish that the site is already online:
+
+```text
+-webHudUrl=https://shockedshodan.github.io/r3e-iNeedMoreSectors/
+```
+
+Verify the deployed revision, open the HUD, and check that `app.js` and `THIRD_PARTY_NOTICES.txt` load below the same project path. Normal hosted use still requires the local bridge and the current API/session scope described above. Test the HTTPS page's connection to the local bridge in RaceRoom itself; success in a desktop preview or the Pages asset check does not establish embedded-browser support. Use the local HTTP URL for diagnosis if the embedded browser rejects the connection, and retain the observed error for acceptance work.
+
+GitHub Pages serves static files. It cannot provide `/api/capture/...`, and adding `capture=1` to the Pages address does not make recording available. Use the local capture server for evidence collection.
+
 ## Capture and evaluate real telemetry
 
-After building, run `npm run capture -- --out captures/practice-01 --port 3200` and use its diagnostic HUD page with `capture=1`. This captures the existing socket into a projected JSONL file and checksum manifest without enabling live lap-record writes.
+On the Windows game PC, build and start the collector in PowerShell:
+
+```powershell
+npm run build
+npm run capture -- --out captures/practice-01 --port 3200
+```
+
+Keep the collector running and use this RaceRoom launch option:
+
+```text
+-webHudUrl=http://127.0.0.1:3200/?capture=1
+```
+
+Do not add `demo=1` for real data. This local diagnostic page records the existing telemetry socket into a projected JSONL file and checksum manifest without enabling live lap-record writes. Stop capture and wait for **Saved** before reloading/exiting the HUD or stopping the collector.
 
 Run `npm run replay -- <capture-directory> --out <new-report-directory>` and `npm run analyze:capture -- <capture-directory> --out <new-analysis-directory>` after stopping the capture. The full [Windows live-testing runbook](LIVE_TESTING.md) covers game setup, independent labels, deliberate invalid/interrupted laps, report interpretation and the evidence required before enabling a supported profile.
+
+## Troubleshoot by connection layer
+
+| Symptom | Check |
+| --- | --- |
+| Page does not load | For local use, keep the website/collector terminal running and match its port to the launch option. For Pages, inspect the deployment and preserve the trailing project-path slash. |
+| Page loads but waits for telemetry | Start exactly one real CrewChief/dash bridge, check port 8070 for another service, stop the synthetic bridge, and verify any `ws=` override. Localhost refers to the machine running the HUD browser. |
+| Unsupported telemetry or session | Confirm API 3.6, player-controlled practice and the exact chosen bridge build. A connection alone does not make another API/session supported. |
+| Empty sectors or delta | Check Off mode and visibility first. Live saving is currently disabled, so no new live Best/Opt reference is expected; use Edit layout for previews or the isolated synthetic demo for rendered timing. |
+| Capture start/save fails | Use the collector's local port-3200 page, not Pages or the normal port-3000 server. Inspect the collector terminal and output-directory permissions; incomplete captures do not qualify as evidence. |
+| Settings appear reset | Check the URL's scheme, host and port, demo versus live mode, and whether this is the same browser/runtime. Storage is not shared between origins. |
 
 ## Add a module
 
