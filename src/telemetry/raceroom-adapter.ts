@@ -29,34 +29,44 @@ function integer(value: unknown, minimum = 0): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum;
 }
 
-function secondsUs(value: unknown): number | null {
+function secondsUs(value: unknown, minimumUs = 0): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
   const time = Math.round(value * 1_000_000);
-  return Number.isSafeInteger(time) ? time : null;
+  return Number.isSafeInteger(time) && time >= minimumUs ? time : null;
+}
+
+interface ResultClocks {
+  totalUs: number | null;
+  firstUs: number | null;
+  secondUs: number | null;
+  thirdUs: number | null;
 }
 
 interface PreviousResult {
-  totalUs: number;
-  durations: readonly number[];
-  signature: string;
+  clocks: ResultClocks;
   valid: boolean | null;
 }
 
-function previousResult(data: ObjectData): PreviousResult | null {
-  const totalUs = secondsUs(data.LapTimePreviousSelf);
+const CLOCK_FIELDS: readonly (keyof ResultClocks)[] = ['totalUs', 'firstUs', 'secondUs', 'thirdUs'];
+
+function previousResult(data: ObjectData): PreviousResult {
   const sectors = data.SectorTimesPreviousSelf;
-  if (totalUs === null || totalUs <= 0 || !object(sectors)) return null;
-  const cumulative = [sectors.Sector1, sectors.Sector2, sectors.Sector3].map(secondsUs);
-  if (cumulative.some(value => value === null || value <= 0)) return null;
-  const values = cumulative as number[];
-  if (!(values[0] < values[1] && values[1] < values[2]) || values[2] !== totalUs) return null;
   return {
-    totalUs,
-    durations: [values[0], values[1] - values[0], values[2] - values[1]],
-    // Validity changing alone never establishes the freshness of timing fields.
-    signature: JSON.stringify([totalUs, ...values]),
+    clocks: {
+      totalUs: secondsUs(data.LapTimePreviousSelf, 1),
+      firstUs: object(sectors) ? secondsUs(sectors.Sector1, 1) : null,
+      secondUs: object(sectors) ? secondsUs(sectors.Sector2, 1) : null,
+      thirdUs: object(sectors) ? secondsUs(sectors.Sector3, 1) : null,
+    },
     valid: data.PrevLapValid === 1 ? true : data.PrevLapValid === 0 ? false : null,
   };
+}
+
+function coherentResult(clocks: ResultClocks) {
+  const { totalUs, firstUs, secondUs, thirdUs } = clocks;
+  if (totalUs === null || firstUs === null || secondUs === null || thirdUs === null
+    || firstUs <= 0 || firstUs >= secondUs || secondUs >= thirdUs || thirdUs !== totalUs) return null;
+  return { totalUs, durations: [firstUs, secondUs - firstUs, thirdUs - secondUs] };
 }
 
 interface ObservationState {
@@ -66,13 +76,13 @@ interface ObservationState {
   elapsedUs: number;
   simulationTime: number | null;
   atMs: number;
-  signature: string | null;
+  clocks: ResultClocks;
 }
 
 interface PendingAssociation {
   completedLap: number;
   crossedAtMs: number;
-  priorSignature: string | null;
+  priorClocks: ResultClocks;
   lastElapsedUs: number;
 }
 
@@ -84,6 +94,7 @@ export function createRaceRoomAdapter(options: RaceRoomAdapterOptions = {}): Rac
   let prior: ObservationState | null = null;
   let pending: PendingAssociation | null = null;
   let invalidThroughLap = -1;
+  let finishReason: string | null = null;
   let state = 'Waiting for RaceRoom practice telemetry';
 
   function reset(): void {
@@ -91,6 +102,7 @@ export function createRaceRoomAdapter(options: RaceRoomAdapterOptions = {}): Rac
     prior = null;
     pending = null;
     invalidThroughLap = -1;
+    finishReason = null;
   }
 
   function reject(reason: string): null {
@@ -147,35 +159,60 @@ export function createRaceRoomAdapter(options: RaceRoomAdapterOptions = {}): Rac
           && data.LapDistanceFraction < prior.distance && elapsedUs < prior.elapsedUs) {
           pending = {
             completedLap: data.CompletedLaps, crossedAtMs: atMs,
-            priorSignature: prior.signature, lastElapsedUs: prior.elapsedUs,
+            priorClocks: prior.clocks, lastElapsedUs: prior.elapsedUs,
           };
+          finishReason = null;
         } else if (prior && (data.CompletedLaps !== prior.completedLaps
           || data.LapDistanceFraction < prior.distance || elapsedUs < prior.elapsedUs)) {
           pending = null;
         }
-        if (pending && previous && previous.signature !== pending.priorSignature && previous.valid === false) {
-          // Once a fresh associated result is explicitly invalid, later field
-          // reordering must not resurrect it as a valid lap.
-          pending = null;
-        }
-        if (options.enableRecordWrites === true && pending && previous
-          && previous.valid === true && previous.signature !== pending.priorSignature
-          && previous.totalUs >= pending.lastElapsedUs && data.CompletedLaps === pending.completedLap) {
-          finishResult = {
-            sessionId, layoutId: data.LayoutId, modelId: vehicle.ModelId,
-            completedLap: pending.completedLap, valid: true,
-            totalUs: previous.totalUs, officialSectorDurationsUs: previous.durations,
-          };
-          pending = null;
+        if (pending) {
+          const baseline = pending.priorClocks;
+          const fresh = CLOCK_FIELDS.some(key => previous.clocks[key] !== null
+            && previous.clocks[key] !== baseline[key]);
+          const coherent = coherentResult(previous.clocks);
+          const mixed = previous.clocks.totalUs !== baseline.totalUs
+            && (['firstUs', 'secondUs'] as const).some(key => baseline[key] !== null
+              && previous.clocks[key] === baseline[key]);
+          if (fresh && previous.valid === false) {
+            // Invalidity is evidence even before all of the finish clocks agree.
+            finishReason = 'Invalid previous result; partial or inconsistent finish clocks cannot restore validity';
+            pending = null;
+          } else if (!fresh) {
+            finishReason = 'Unchanged native finish clocks are stale or ambiguous';
+          } else if (mixed) {
+            finishReason = 'Mixed result contains unchanged stale native sector clocks';
+          } else if (!coherent) {
+            finishReason = 'Partial or inconsistent native finish clocks';
+          } else if (previous.valid !== true) {
+            finishReason = 'Previous result validity is unavailable';
+          } else if (coherent.totalUs < pending.lastElapsedUs) {
+            finishReason = 'Previous result clock is shorter than the captured lap';
+          } else if (options.enableRecordWrites === true && data.CompletedLaps === pending.completedLap) {
+            finishResult = {
+              sessionId, layoutId: data.LayoutId, modelId: vehicle.ModelId,
+              completedLap: pending.completedLap, valid: true,
+              totalUs: coherent.totalUs, officialSectorDurationsUs: coherent.durations,
+            };
+            finishReason = null;
+            pending = null;
+          }
         }
         prior = {
           identity, completedLaps: data.CompletedLaps,
           distance: data.LapDistanceFraction, elapsedUs, simulationTime, atMs,
-          signature: previous?.signature ?? prior?.signature ?? null,
+          // Clearing and restoring a clock must not manufacture freshness.
+          clocks: {
+            totalUs: previous.clocks.totalUs ?? prior?.clocks.totalUs ?? null,
+            firstUs: previous.clocks.firstUs ?? prior?.clocks.firstUs ?? null,
+            secondUs: previous.clocks.secondUs ?? prior?.clocks.secondUs ?? null,
+            thirdUs: previous.clocks.thirdUs ?? prior?.clocks.thirdUs ?? null,
+          },
         };
         state = options.enableRecordWrites === true
           ? 'Fixture recording enabled; live semantics remain unverified'
           : 'Connected; live record writes disabled until telemetry semantics are verified';
+        if (finishReason) state += `; ${finishReason}`;
       }
 
       return {

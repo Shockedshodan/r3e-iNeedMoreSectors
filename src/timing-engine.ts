@@ -74,8 +74,12 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
   let sessionId: string | null = null;
   let blockedLap: number | null = null;
   let disposed = false;
+  let finishReason: string | null = 'Incomplete capture: nonzero lap start or interrupted capture lacks the complete start';
 
-  function discard(frame: TimingFrame): void {
+  function discard(frame: TimingFrame, reason: string): void {
+    // Preserve the first loss of capture, rather than replacing it with
+    // secondary discontinuities in an already incomplete lap.
+    if (current !== null || pending !== null) finishReason = reason;
     const knownLap = current?.completedLaps ?? lastFrame?.completedLaps ?? blockedLap;
     current = null;
     pending = null;
@@ -127,11 +131,17 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
 
     const capture = pending.capture;
     pending = null;
-    if (!validResult(result) || result.totalUs < capture.lastPoint.elapsedUs) return;
+    if (!validResult(result) || result.totalUs < capture.lastPoint.elapsedUs) {
+      finishReason = 'Invalid or inconsistent official finish clocks';
+      return;
+    }
     // The coherent wrap plus associated official total supplies the finish
     // endpoint. The total is never inferred from the next lap's clock.
     append(capture, { fraction: 1, elapsedUs: result.totalUs });
-    if (capture.grid.length !== sectorCount * INTERVALS + 1) return;
+    if (capture.grid.length !== sectorCount * INTERVALS + 1) {
+      finishReason = 'Incomplete capture grid';
+      return;
+    }
     const absoluteTimes = boundaries.map((_, index) => Math.round(capture.grid[index * INTERVALS].elapsedUs));
     const sectors = boundaries.slice(0, -1).map((_, sectorIndex) => {
       const startUs = absoluteTimes[sectorIndex];
@@ -149,7 +159,11 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
       complete: true, valid: true, boundaries: [...boundaries],
       reference: { totalUs: result.totalUs, sectors },
     });
-    if (!isValidReference(candidate.reference, sectorCount)) return;
+    if (!isValidReference(candidate.reference, sectorCount)) {
+      finishReason = 'Invalid captured sector curves';
+      return;
+    }
+    finishReason = null;
     const update = updateRecords(records, candidate);
     const improved = update.bestChanged || update.optChanged;
     if (improved) records = update.records;
@@ -170,28 +184,31 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
     consume(frame) {
       if (disposed) return;
       if (!usableFrame(frame) || !allowedSource(frame)) {
-        discard(frame);
+        discard(frame, 'Invalid timing or inactive driving interrupted capture');
         return;
       }
       if (frame.layoutId !== layoutId || frame.modelId !== modelId) {
-        discard(frame);
+        discard(frame, 'Layout or vehicle change interrupted capture');
         sessionId = null;
         return;
       }
       if (sessionId !== null && frame.sessionId !== sessionId) {
-        discard(frame);
+        discard(frame, 'Session change interrupted capture');
         blockedLap = null;
       }
       sessionId = frame.sessionId;
 
-      if (pending !== null && frame.observedAtMs - pending.crossedAtMs > options.finishTimeoutMs) pending = null;
+      if (pending !== null && frame.observedAtMs - pending.crossedAtMs > options.finishTimeoutMs) {
+        pending = null;
+        finishReason = 'Finish association timed out';
+      }
       if (lastFrame === null) {
         if (blockedLap !== frame.completedLaps && frame.distanceFraction === 0 && frame.lapElapsedUs === 0) start(frame);
       } else {
         const previous = lastFrame;
         const gap = frame.observedAtMs - previous.observedAtMs;
         if (gap < 0 || gap > options.maxFrameGapMs) {
-          discard(frame);
+          discard(frame, 'Observation gap interrupted capture continuity');
           return;
         }
         const lapStep = frame.completedLaps - previous.completedLaps;
@@ -199,7 +216,9 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
           const distanceStep = frame.distanceFraction - previous.distanceFraction;
           if (distanceStep < 0 || distanceStep > options.maxDistanceStep + DISTANCE_EPSILON
             || frame.lapElapsedUs < previous.lapElapsedUs) {
-            discard(frame);
+            discard(frame, distanceStep < 0 || frame.lapElapsedUs < previous.lapElapsedUs
+              ? 'Unsupported staggered distance/count/clock ordering interrupted capture'
+              : 'Distance discontinuity interrupted capture');
             return;
           }
           if (current !== null) {
@@ -214,9 +233,11 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
           pending = current?.valid ? {
             capture: current, completedLap: frame.completedLaps, crossedAtMs: frame.observedAtMs,
           } : null;
+          if (current) finishReason = current.valid
+            ? 'Complete capture awaits an associated official finish result' : 'Invalid captured lap';
           start(frame);
         } else {
-          discard(frame);
+          discard(frame, 'Unsupported staggered distance/count/clock ordering interrupted capture');
           return;
         }
       }
@@ -227,6 +248,7 @@ export function createTimingEngine(options: TimingEngineOptions): TimingEngine {
     records: () => records,
     comparisonSnapshot: () => snapshot,
     pendingFinishCount: () => pending === null ? 0 : 1,
+    finishRejectionReason: () => finishReason,
     synchronizeRecords(recovered) {
       if (disposed) return;
       // Recovery updates available references without reclassifying them as a

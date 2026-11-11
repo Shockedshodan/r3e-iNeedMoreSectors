@@ -5,6 +5,8 @@ import { createRaceRoomAdapter } from '../telemetry/raceroom-adapter.ts';
 import { createTimingEngine } from '../timing-engine.ts';
 import { createRecordRepository } from '../records.ts';
 import { createLayoutDefinitionRegistry } from '../layout-definitions.ts';
+import { analyzeCapture } from './analyze.ts';
+import type { ReportedLap } from './analyze.ts';
 
 export interface ReplayProposal {
   seq: number;
@@ -69,8 +71,11 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
   { allowIncomplete: true });
   const issues = [...new Set([...validated.problems, ...document.problems])];
   const complete = validated.complete && document.complete && document.problems.length === 0;
-  const shadow = run(validated, true, options);
-  const control = run(validated, false, options);
+  // Raw count crossings survive unavailable lap clocks; they are diagnostic
+  // observations, never authorization to manufacture a normalized timing frame.
+  const rawCrossings = new Map(analyzeCapture(validated).reportedLaps.map(lap => [lap.seq, lap]));
+  const shadow = run(validated, true, options, rawCrossings);
+  const control = run(validated, false, options, rawCrossings);
   issues.push(...shadow.issues);
   const labels: { value: ReplayAnnotation; origin: 'event' | 'sidecar' }[] = [
     ...validated.events.filter(event => event.type === 'annotation' && event.annotation)
@@ -92,7 +97,7 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
     const authorized = shadow.results.filter(result => matches(value, result));
     const accepted = shadow.accepted.filter(result => matches(value, result));
     const proposals = shadow.proposals.filter(result => matches(value, result));
-    const crossings = shadow.crossings.filter(result => matches(value, result));
+    const crossings = [...shadow.crossings, ...shadow.rejectedCrossings].filter(result => matches(value, result));
     const observed = crossings.length > 0;
     const sessions = new Set([...authorized, ...accepted, ...crossings].map(result => `${result.connectionId}:${result.sessionId}`));
     const base = { annotation: scopedAnnotation(value), proposalCount: proposals.length,
@@ -118,8 +123,8 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
   });
   const unresolved = comparisons.filter(comparison => comparison.status === 'unresolved');
   const observed = new Map<string, ResultIdentity>();
-  for (const result of [...shadow.crossings, ...shadow.results]) {
-    observed.set(JSON.stringify([result.connectionId, result.sessionId, result.completedLap]), result);
+  for (const result of [...shadow.crossings, ...shadow.rejectedCrossings, ...shadow.results]) {
+    observed.set(resultKey(result), result);
   }
   for (const result of observed.values()) {
     if (labels.some(({ value }) => matches(value, result))) continue;
@@ -129,11 +134,13 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
       && value.sessionId === result.sessionId && value.completedLap === result.completedLap).length;
     const proposalCount = shadow.proposals.filter(value => value.connectionId === result.connectionId
       && value.sessionId === result.sessionId && value.completedLap === result.completedLap).length;
+    const rejection = shadow.rejections.get(resultKey(result));
     unresolved.push({ annotation: { completedLap: result.completedLap, outcome: 'unknown',
       layoutId: result.layoutId, modelId: result.modelId, connectionId: result.connectionId,
       sessionId: result.sessionId, atMs: result.atMs }, status: 'unresolved',
-    reason: authorized.length ? 'Unlabeled adapter result has no independent ground truth'
-      : 'Unlabeled observed crossing has an unresolved or ambiguous result',
+    reason: acceptedCount > 0 ? 'Unlabeled adapter result has no independent ground truth'
+      : rejection ? [rejection.invalid ? 'Native invalidity observed' : null, rejection.adapter, rejection.capture]
+        .filter(Boolean).join('; ') : 'Unlabeled observed crossing has an unresolved or ambiguous result',
     proposalCount, authorizedResultCount: authorized.length,
     acceptedCount, origin: 'unlabeled-result' });
   }
@@ -148,6 +155,10 @@ export function replayCapture(document: CaptureDocument, options: ReplayOptions 
 }
 
 type ResultIdentity = Omit<ReplayProposal, 'bestChanged' | 'optChanged'>;
+
+function resultKey(result: Pick<ResultIdentity, 'connectionId' | 'sessionId' | 'completedLap'>): string {
+  return JSON.stringify([result.connectionId, result.sessionId, result.completedLap]);
+}
 
 function annotationFields(value: CaptureAnnotation): CaptureAnnotation {
   return { completedLap: value.completedLap, outcome: value.outcome,
@@ -174,7 +185,7 @@ function matches(label: ReplayAnnotation, result: ResultIdentity): boolean {
 }
 
 /** Each run owns all its storage and clock state; browser stores are unreachable. */
-function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions) {
+function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions, rawCrossings: ReadonlyMap<number, ReportedLap>) {
   const values = new Map<string, string>();
   const storage: StorageLike = { getItem: key => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); } };
   const definitions = createLayoutDefinitionRegistry(storage);
@@ -184,6 +195,8 @@ function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions)
   const results: ReplayResult[] = [];
   const accepted: ResultIdentity[] = [];
   const crossings: ResultIdentity[] = [];
+  const rejectedCrossings: ResultIdentity[] = [];
+  const rejections = new Map<string, { invalid: boolean; adapter: string; capture: string | null }>();
   const contexts = new Map<number, TimingFrame>();
   const issues: string[] = [];
   let now = 0;
@@ -218,6 +231,21 @@ function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions)
     } else if (event.type === 'message') {
       if (connectionId !== event.connectionId) throw new RangeError(`Message ${event.seq} arrived outside its open connection`);
       const observation = adapter.adapt(event.data);
+      const rawCrossing = rawCrossings.get(event.seq);
+      if (rawCrossing && rawCrossing.layoutId !== null && rawCrossing.modelId !== null
+        && Number.isSafeInteger(rawCrossing.layoutId) && Number.isSafeInteger(rawCrossing.modelId)) {
+        const crossing = { seq: event.seq, atMs: now, connectionId: event.connectionId,
+          sessionId: observation?.frame.sessionId ?? rawCrossing.sessionId,
+          completedLap: rawCrossing.completedLap, layoutId: rawCrossing.layoutId,
+          modelId: rawCrossing.modelId, totalUs: observation?.frame.finishResult?.totalUs ?? 0 };
+        const usable = observation && lastFrame?.sessionId === observation.frame.sessionId
+          && observation.frame.completedLaps === lastFrame.completedLaps + 1;
+        if (usable) crossings.push(crossing);
+        else rejectedCrossings.push(crossing);
+        const invalid = event.data?.PrevLapValid === 0 || event.data?.LapValidState === 1 || event.data?.LapValidState === 2;
+        rejections.set(resultKey(crossing), { invalid, adapter: adapter.status(),
+          capture: usable ? null : 'Unavailable or interrupted timing clocks prevent complete capture' });
+      }
       if (observation === null) {
         engine?.dispose(); engine = null; identity = null; lastFrame = null;
         issues.push(`Event ${event.seq}: ${adapter.status()}`);
@@ -225,11 +253,6 @@ function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions)
       }
       const frame = observation.frame;
       const nextIdentity = JSON.stringify([frame.sessionId, frame.layoutId, frame.modelId]);
-      if (lastFrame && lastFrame.sessionId === frame.sessionId && frame.completedLaps === lastFrame.completedLaps + 1) {
-        crossings.push({ seq: event.seq, atMs: now, connectionId: event.connectionId,
-          sessionId: frame.sessionId, completedLap: frame.completedLaps, layoutId: frame.layoutId,
-          modelId: frame.modelId, totalUs: frame.finishResult?.totalUs ?? 0 });
-      }
       if (frame.finishResult) {
         activeResult = { ...describe(frame.finishResult), engineAccepted: false, engineImprovement: false };
         results.push(activeResult);
@@ -260,11 +283,18 @@ function run(document: CaptureDocument, shadow: boolean, options: ReplayOptions)
         identity = nextIdentity;
       }
       engine!.consume(frame);
+      const key = resultKey({ ...frame, connectionId: event.connectionId, completedLap: frame.completedLaps });
+      const rejection = rejections.get(key);
+      if (rejection) {
+        rejection.adapter = adapter.status();
+        if (rawCrossing || frame.finishResult) rejection.capture =
+          [rejection.capture, engine!.finishRejectionReason()].filter(Boolean).join('; ');
+      }
       lastFrame = frame;
     }
     if (lastFrame) contexts.set(event.seq, lastFrame);
   }
   engine?.dispose();
-  return { proposals, results, accepted, crossings, contexts, issues,
+  return { proposals, results, accepted, crossings, rejectedCrossings, contexts, issues, rejections,
     records: [...combinations.values()].map(combination => repository.load(combination, combination.definition)) };
 }

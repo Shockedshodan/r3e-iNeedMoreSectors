@@ -102,6 +102,7 @@ export interface TimingEngine {
   records(): RecordBook;
   comparisonSnapshot(): RecordBook;
   pendingFinishCount(): number;
+  finishRejectionReason(): string | null;
   dispose(): void;
 }
 

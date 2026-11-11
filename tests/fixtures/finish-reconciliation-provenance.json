@@ -1,0 +1,44 @@
+{
+  "sourceCaptureId": "f489307d-60e5-4188-9e9b-fce95b169b88",
+  "sourceSha256": "67e59c0b3f83e05e4d0d1989fef1507bc83342788799cc40ea87ea3ba32cb88b",
+  "sourceByteCount": 45541348,
+  "sourceEventCount": 56940,
+  "retention": "The acceptance tests read the original complete capture through R3E_FULL_CAPTURE and replay every event from the original connection-open through the original footer. No receipts, timestamps, raw fields, sequences or preceding state are removed or transformed. The source is intentionally untracked; this file documents receipt identities without duplicating the 45 MB capture.",
+  "independentValidityLabels": [],
+  "evidence": "Telemetry-derived observations only; native validity flags and native totals are not independent finality labels and do not authorize live saving.",
+  "recoveringClock": {
+    "unavailableSeq": 19158,
+    "resumedSeq": 19159,
+    "completedLap": 3,
+    "crossingSeq": 28104,
+    "totalUs": 149494965,
+    "blocker": "A complete input file does not guarantee a complete engine capture: the preceding invalid/unavailable-clock lap ends at seq 19159 with nonzero distance and a nonzero resumed lap clock. If the next lap cannot be captured from that observed start, reject it with an explicit nonzero-start/incomplete-capture reason. Do not infer an exact zero sample or use a native valid flag as independent finality."
+  },
+  "leadingDistanceWrap": {
+    "beforeSeq": 37065,
+    "distanceWrapSeq": 37066,
+    "countAndClockSeq": 37068,
+    "completedLap": 4,
+    "leadMs": 33.3,
+    "totalUs": 149835876,
+    "blocker": "The distance wrap at seq 37066 leads count/clock progression at seq 37068 by 33.3 ms. If staggered wrap semantics cannot safely establish one association, conservatively reject with an explicit leading-distance/staggered-wrap blocker. A generic unresolved result or absent independent labels alone does not explain this reconciliation failure."
+  },
+  "invalidClockTransitions": [
+    {
+      "beforeSeq": 38557,
+      "unavailableSeq": 38558,
+      "crossingSeq": 46015,
+      "completedLap": 5,
+      "priorValidResultTotalUs": 149835876,
+      "blocker": "At seq 38558 current validity becomes invalid and the current clock becomes -1 while the prior valid result remains available. At seq 46015 the count advances and current validity/clock resume, but previous validity is 0 and previous total/sectors are -1. Reject the interrupted invalid/unavailable-clock lap explicitly; do not reuse the older valid lap-4 result."
+    },
+    {
+      "beforeSeq": 54613,
+      "unavailableSeq": 54614,
+      "invalidNextSeq": 54666,
+      "crossingSeq": 54986,
+      "completedLap": 6,
+      "blocker": "Current validity becomes invalid with clock -1 at seq 54614, reaches current-and-next invalid state 2 at seq 54666, then changes to state 1 at count progression seq 54986 while the clock and previous result remain unavailable. Preserve the invalid/unavailable-clock rejection and explain it rather than dropping the raw crossing from diagnostics. This does not independently establish the cause of invalidation."
+    }
+  ]
+}
