@@ -1,0 +1,73 @@
+{
+  "sourceCaptureId": "f489307d-60e5-4188-9e9b-fce95b169b88",
+  "sourceSha256": "67e59c0b3f83e05e4d0d1989fef1507bc83342788799cc40ea87ea3ba32cb88b",
+  "sourceByteCount": 45541348,
+  "sourceEventCount": 56940,
+  "fixtureSha256": "bb110b3ea564b86aa5c6b9a82db6acfe54ccf556db24d8ecb997e60dbfb85be6",
+  "extraction": "Original connection-open event followed by only the adjacent message before and after each of the six CompletedLaps increments. Original projected data, timestamps and connection IDs are unchanged; sequence numbers are compacted. Inserted loss events prevent attribution across omitted intervals. Footer marks the extraction incomplete.",
+  "observations": [
+    {
+      "fixtureSeq": 2,
+      "sourceSeq": 10141,
+      "sourceLine": 10142
+    },
+    {
+      "fixtureSeq": 3,
+      "sourceSeq": 10142,
+      "sourceLine": 10143
+    },
+    {
+      "fixtureSeq": 5,
+      "sourceSeq": 19158,
+      "sourceLine": 19159
+    },
+    {
+      "fixtureSeq": 6,
+      "sourceSeq": 19159,
+      "sourceLine": 19160
+    },
+    {
+      "fixtureSeq": 8,
+      "sourceSeq": 28103,
+      "sourceLine": 28104
+    },
+    {
+      "fixtureSeq": 9,
+      "sourceSeq": 28104,
+      "sourceLine": 28105
+    },
+    {
+      "fixtureSeq": 11,
+      "sourceSeq": 37067,
+      "sourceLine": 37068
+    },
+    {
+      "fixtureSeq": 12,
+      "sourceSeq": 37068,
+      "sourceLine": 37069
+    },
+    {
+      "fixtureSeq": 14,
+      "sourceSeq": 46014,
+      "sourceLine": 46015
+    },
+    {
+      "fixtureSeq": 15,
+      "sourceSeq": 46015,
+      "sourceLine": 46016
+    },
+    {
+      "fixtureSeq": 17,
+      "sourceSeq": 54985,
+      "sourceLine": 54986
+    },
+    {
+      "fixtureSeq": 18,
+      "sourceSeq": 54986,
+      "sourceLine": 54987
+    }
+  ],
+  "independentValidityLabels": [],
+  "limitations": "Source live label and raw validity fields do not independently establish lap validity or authorize live records. These windows do not establish full-lap capture or real-game browser behavior.",
+  "sourceOpenSeq": 1
+}

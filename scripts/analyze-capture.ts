@@ -48,7 +48,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   await mkdir(directory, { recursive: true });
   for (const file of files) await writeFile(join(directory, file.name), file.content, { flag: 'wx' });
   console.log(`Capture observations saved: ${directory}`);
-  console.log(`${report.summary.messageCount} messages, ${report.finishes.length} observed count progressions; final validity remains unestablished and live writes remain disabled.`);
+  console.log(`${report.summary.messageCount} messages, ${report.boundaryObservations.filter(row => row.countProgression).length} observed count progressions, ${report.finishes.length} timing-qualified finish candidates; final validity remains unestablished and live writes remain disabled.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

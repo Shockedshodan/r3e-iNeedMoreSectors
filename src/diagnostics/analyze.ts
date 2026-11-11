@@ -66,7 +66,7 @@ export interface CaptureAnalysisReport {
   summary: { eventCount: number; messageCount: number; duplicateMessageCount: number; invalidTimingCount: number; malformedCount: number; transportResetEvents: number; observedStateResets: number; annotationCount: number; lossEventCount: number };
   connections: ConnectionAnalysis[];
   finishes: FinishWindow[];
-  boundaryObservations: { connectionId: number; seq: number; tMs: number; countProgression: boolean; distanceWrapped: boolean; clockWrapped: boolean }[];
+  boundaryObservations: { connectionId: number; seq: number; tMs: number; completedLap: number | null; countProgression: boolean; timingAvailable: boolean; distanceWrapped: boolean; clockWrapped: boolean }[];
   movements: MovementObservation[];
   unknownValues: Record<string, { missing: number; null: number; unavailable: number; malformed: number }>;
   quantizationErrorsUs: { connectionId: number; seq: number; tMs: number; errorUs: number }[];
@@ -265,17 +265,18 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
       state.lastUniqueAt = event.tMs;
     }
 
-    if (prior && validTiming(prior.data) && validTiming(data)) {
+    const priorCount = prior ? lapCount(prior.data) : null;
+    const countProgression = count !== null && priorCount !== null && count > priorCount;
+    const timingAvailable = prior !== null && validTiming(prior.data) && validTiming(data);
+    let distanceWrapped = false;
+    let clockWrapped = false;
+    if (prior && timingAvailable) {
       const beforeCount = lapCount(prior.data)!;
       const lapStep = count! - beforeCount;
       const distance = number(data, 'LapDistanceFraction')!;
       const previousDistance = number(prior.data, 'LapDistanceFraction')!;
-      const distanceWrapped = distance < previousDistance;
-      const clockWrapped = number(data, 'LapTimeCurrentSelf')! < number(prior.data, 'LapTimeCurrentSelf')!;
-      if (lapStep > 0 || distanceWrapped || clockWrapped) report.boundaryObservations.push({
-        connectionId: event.connectionId, seq: event.seq, tMs: event.tMs,
-        countProgression: lapStep > 0, distanceWrapped, clockWrapped,
-      });
+      distanceWrapped = distance < previousDistance;
+      clockWrapped = number(data, 'LapTimeCurrentSelf')! < number(prior.data, 'LapTimeCurrentSelf')!;
       if (lapStep > 0) anchors.push({
         segment: state.segment,
         finish: { connectionId: event.connectionId, seq: event.seq, atMs: event.tMs,
@@ -298,6 +299,10 @@ export function analyzeCapture(document: CaptureDocument, options: { windowMs?: 
           ? Math.max(speed, oldSpeed) * simulationDelta : null,
       });
     }
+    if (countProgression || distanceWrapped || clockWrapped) report.boundaryObservations.push({
+      connectionId: event.connectionId, seq: event.seq, tMs: event.tMs, completedLap: count,
+      countProgression, timingAvailable, distanceWrapped, clockWrapped,
+    });
     const total = number(data, 'LapTimePreviousSelf');
     const third = number(data, 'SectorTimesPreviousSelf.Sector3');
     if (total !== null && total > 0 && third !== null && third > 0) report.quantizationErrorsUs.push({
@@ -344,12 +349,18 @@ function escape(value: unknown): string {
   return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
+function timingStatus(timingAvailable: boolean): string {
+  return timingAvailable ? 'Timing-qualified finish candidate; final validity is not established'
+    : 'Lap timing unavailable; raw count marker only';
+}
 export function formatAnalysisCsv(report: CaptureAnalysisReport): string {
   const rows: unknown[][] = [['record', 'connectionId', 'sequence', 'tMs', 'offsetMs', 'field', 'before', 'after', 'detail']];
   for (const connection of report.connections) rows.push(['connection', connection.connectionId, '', '', '', '', '', '', JSON.stringify(connection)]);
+  for (const boundary of report.boundaryObservations.filter(row => row.countProgression)) {
+    rows.push([boundary.timingAvailable ? 'finish' : 'count', boundary.connectionId, boundary.seq, boundary.tMs,
+      '', 'CompletedLaps', '', boundary.completedLap, timingStatus(boundary.timingAvailable)]);
+  }
   for (const finish of report.finishes) {
-    rows.push(['finish', finish.connectionId, finish.seq, finish.atMs, '', 'CompletedLaps', '', finish.completedLap,
-      'Observed crossing; final validity is not established']);
     for (const change of finish.timeline) rows.push(['field', finish.connectionId, change.seq, change.tMs, change.offsetMs,
       change.field, display(change.before), display(change.after), change.initial ? 'initial observation' : 'change']);
   }
@@ -358,7 +369,8 @@ export function formatAnalysisCsv(report: CaptureAnalysisReport): string {
 }
 export function formatAnalysisHtml(report: CaptureAnalysisReport): string {
   const rows = report.connections.map(connection => `<tr><td>${connection.connectionId}</td><td>${connection.messageCount}</td><td>${connection.duplicateMessageCount}</td><td>${escape(connection.receiveGaps.maxMs)}</td><td>${escape(connection.uniqueSimulationUpdateGaps.maxMs)}</td></tr>`).join('');
-  const finishes = report.finishes.map(finish => `<section><h2>Connection ${finish.connectionId}, lap-count progression to ${finish.completedLap}</h2>
+  const progressions = report.boundaryObservations.filter(row => row.countProgression).map(row => `<tr><td>${row.connectionId}</td><td>${row.seq}</td><td>${row.tMs}</td><td>${escape(row.completedLap)}</td><td>${timingStatus(row.timingAvailable)}</td></tr>`).join('');
+  const finishes = report.finishes.map(finish => `<section><h2>Connection ${finish.connectionId}, timing finish window at sequence ${finish.seq}</h2>
     <p>At ${finish.atMs} ms. First changed result: ${escape(finish.firstChangedResultOffsetMs)} ms; last observed result change: ${escape(finish.lastObservedResultChangeOffsetMs)} ms. Finality is not established.${finish.overlappingCrossings ? ' Neighboring finish windows overlap.' : ''}</p>
     <table><thead><tr><th>Sequence</th><th>Offset ms</th><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>${finish.timeline.map(change => `<tr><td>${change.seq}</td><td>${change.offsetMs}</td><td>${escape(change.field)}</td><td>${escape(display(change.before))}</td><td>${escape(display(change.after))}</td></tr>`).join('')}</tbody></table></section>`).join('');
   return `<!doctype html>
@@ -369,6 +381,7 @@ export function formatAnalysisHtml(report: CaptureAnalysisReport): string {
 <ul>${report.issues.map(issue => `<li>${escape(issue)}</li>`).join('')}</ul><h2>Connection measurements</h2>
 <p>Receive gaps and unique simulation-clock update gaps are separate observations. Polling can repeat one game frame. Percentiles use nearest rank; no threshold is selected automatically.</p>
 <table><thead><tr><th>Connection</th><th>Messages</th><th>Duplicates</th><th>Max receive gap ms</th><th>Max unique-update gap ms</th></tr></thead><tbody>${rows}</tbody></table>
+<h2>Raw count progressions</h2><table><thead><tr><th>Connection</th><th>Sequence</th><th>Time ms</th><th>Completed laps</th><th>Timing status</th></tr></thead><tbody>${progressions}</tbody></table>
 ${finishes}<h2>Diagnostics</h2><p>Queue high-water bytes: ${escape(report.diagnostics.queueHighWaterBytes)}; recorded loss count: ${escape(report.diagnostics.recordedLossCount)}.</p>
 </body></html>\n`;
 }
